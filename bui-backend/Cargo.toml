@@ -1,6 +1,6 @@
 [package]
 name = "bui-backend"
-description = "write backend server for Browser User Interface (BUI)"
+description = "backend server for Browser User Interface (BUI)"
 version = "0.1.0"
 authors = ["Andrew Straw <strawman@astraw.com>"]
 documentation = "https://docs.rs/bui-backend/"
