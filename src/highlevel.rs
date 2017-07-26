@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use futures::{Future, Sink, Stream};
+use futures::sync::mpsc;
 use serde::Serialize;
 
 pub struct NewBuiService {
@@ -26,6 +27,21 @@ impl NewService for NewBuiService {
     fn new_service(&self) -> std::result::Result<Self::Instance, std::io::Error> {
         (self.value)()
     }
+}
+
+// ------
+
+#[derive(Debug)]
+pub enum ConnectionEventType {
+    Connect,
+    Disconnect,
+}
+
+#[derive(Debug)]
+pub struct ConnectionEvent {
+    pub typ: ConnectionEventType,
+    pub client_key: ClientKeyType,
+    pub connection_key: ConnectionKeyType,
 }
 
 // ------
@@ -47,7 +63,7 @@ impl<T> BuiAppInner<T>
                addr: &SocketAddr,
                config: Config,
                chan_size: usize)
-               -> BuiAppInner<T> {
+               -> (mpsc::Receiver<ConnectionEvent>, BuiAppInner<T>) {
         let (rx_conn, bui_server) = launcher(config, &jwt_secret, chan_size);
 
         let b2 = bui_server.clone();
@@ -63,12 +79,15 @@ impl<T> BuiAppInner<T>
         };
 
         // --- handle_connections future
+        let (new_conn_tx, new_conn_rx) = mpsc::channel(1); // TODO chan_size
+
         let shared_arc = inner.i_shared_arc.clone();
         let txers2 = inner.i_txers.clone();
+        let new_conn_tx2 = new_conn_tx.clone();
         let handle_connections = rx_conn.for_each(move |conn_info| {
 
             let tx = conn_info.chunk_sender;
-            let client_key = conn_info.client_key;
+            let ckey = conn_info.client_key;
             let connection_key = conn_info.connection_key;
 
             // send current value on initial connect
@@ -79,10 +98,15 @@ impl<T> BuiAppInner<T>
                 buf.into()
             };
 
+            let nct = new_conn_tx2.clone();
+            let typ = ConnectionEventType::Connect;
+            let client_key = ckey.clone();
+            nct.send(ConnectionEvent {typ,client_key,connection_key}).wait().unwrap();
+
             match tx.send(Ok(hc)).wait() {
                 Ok(tx) => {
                     let mut txer_guard = txers2.lock().unwrap();
-                    txer_guard.insert(connection_key, (client_key, tx));
+                    txer_guard.insert(connection_key, (ckey, tx));
                     futures::future::ok(())
                 }
                 Err(e) => {
@@ -126,6 +150,9 @@ impl<T> BuiAppInner<T>
                                 info!("failed to send data to event stream, client \
                                       probably disconnected. {:?}",
                                       e);
+                                let nct = new_conn_tx.clone();
+                                let typ = ConnectionEventType::Disconnect;
+                                nct.send(ConnectionEvent {typ,client_key,connection_key}).wait().unwrap();
                             }
                         };
                     }
@@ -140,7 +167,7 @@ impl<T> BuiAppInner<T>
         };
         inner.i_hyper_server.handle().spawn(change_listener);
 
-        inner
+        (new_conn_rx, inner)
     }
 
     pub fn shared_arc(&self) -> &Arc<Mutex<DataTracker<T>>> {

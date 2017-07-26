@@ -22,6 +22,7 @@ serde = "1.0"
 serde_derive = "1.0"
 serde_json = {version = "1.0"}
 jsonwebtoken = {version="2"}
+uuid = { version = "0.5", features = ["v4", "serde"] }
 
 [features]
 default = ["bundle_files"]

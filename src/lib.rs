@@ -18,10 +18,12 @@ extern crate serde_json;
 extern crate futures;
 extern crate hyper;
 extern crate jsonwebtoken;
+extern crate uuid;
 
 use hyper::{Get, Post, StatusCode, mime};
 use hyper::server::{Request, Response};
 use hyper::header::{Accept, ContentLength};
+use uuid::Uuid;
 
 use futures::{Future, Stream, Sink};
 use futures::sync::mpsc;
@@ -56,8 +58,8 @@ pub use errors::*;
 
 // ---------------------------
 
-/// Alias for `usize` indicating that clients are tracked by keys of this type.
-pub type ClientKeyType = usize;
+/// Alias for `Uuid` indicating that sessions are tracked by keys of this type.
+pub type ClientKeyType = Uuid;
 
 /// The claims validated using JSON Web Tokens.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -113,7 +115,6 @@ pub type ConnectionKeyType = usize;
 pub struct BuiService {
     config: Config,
     callback_senders: Arc<Mutex<Vec<CallbackArgSender>>>,
-    next_client_key: Arc<Mutex<ClientKeyType>>,
     next_connection_key: Arc<Mutex<ConnectionKeyType>>,
     jwt_secret: Arc<Mutex<Vec<u8>>>,
     tx_new_connection: NewConnectionSender,
@@ -167,10 +168,7 @@ impl BuiService {
     }
 
     fn get_next_client_key(&self) -> ClientKeyType {
-        let mut nk = self.next_client_key.lock().unwrap();
-        let result = *nk;
-        *nk += 1;
-        result
+        Uuid::new_v4()
     }
 
     fn get_next_connection_key(&self) -> ConnectionKeyType {
@@ -306,8 +304,8 @@ impl hyper::server::Service for BuiService {
         } else {
             // There was no valid client key in the HTTP header, so generate a
             // new one and set it on client.
-            let key = self.get_next_client_key();
-            let claims = JwtClaims { key };
+            let client_key = self.get_next_client_key();
+            let claims = JwtClaims { key: client_key.clone() };
 
             let token = {
                 let jwt_secret = self.jwt_secret.lock().unwrap();
@@ -315,7 +313,7 @@ impl hyper::server::Service for BuiService {
                     .unwrap()
             };
             let cookie = format!("{}={}", self.config.cookie_name, token);
-            (key,
+            (client_key,
              Response::<hyper::Body>::new().with_header(hyper::header::SetCookie(vec![cookie])))
         };
 
@@ -397,7 +395,6 @@ pub fn launcher(config: Config,
                 jwt_secret: &[u8],
                 channel_size: usize)
                 -> (NewConnectionReceiver, BuiService) {
-    let next_client_key = Arc::new(Mutex::new(0));
     let next_connection_key = Arc::new(Mutex::new(0));
 
     let callback_senders = Arc::new(Mutex::new(Vec::new()));
@@ -408,7 +405,6 @@ pub fn launcher(config: Config,
     let service = BuiService {
         config: config,
         callback_senders: callback_senders,
-        next_client_key: next_client_key,
         next_connection_key: next_connection_key,
         jwt_secret: Arc::new(Mutex::new(jwt_secret.clone())),
         tx_new_connection: tx,
