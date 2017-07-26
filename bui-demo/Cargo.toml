@@ -7,7 +7,7 @@ repository = "https://github.com/astraw/bui-backend"
 license = "MIT/Apache-2.0"
 
 [dependencies]
-bui-backend = {path="../bui-backend", default-features = false}
+bui-backend = {path="..", default-features = false}
 log = "0.3.6"
 env_logger = "0.4"
 raii-change-tracker = "0.1"
@@ -23,7 +23,7 @@ dotenv = "0.10"
 futures = "0.1"
 
 [build-dependencies]
-bui-backend-codegen = {path = "../bui-backend/codegen", default-features = false}
+bui-backend-codegen = {path = "../codegen", default-features = false}
 
 [features]
 default = ["bundle_files", "frontend_js"]
