@@ -1,6 +1,6 @@
 [package]
 name = "bui-backend"
-description = "backend server for Browser User Interface (BUI)"
+description = "Brower User Interfaces (BUIs) with Tokio"
 version = "0.1.0"
 authors = ["Andrew Straw <strawman@astraw.com>"]
 documentation = "https://docs.rs/bui-backend/"

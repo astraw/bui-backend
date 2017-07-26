@@ -1,4 +1,4 @@
-# bui-backend - support for writing browser user interface backends in Rust
+# bui-backend - Brower User Interfaces (BUIs) with Tokio
 
 **This is a work in progress. The API will likely evolve somewhat. The docs
 need work.**
