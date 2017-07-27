@@ -59,18 +59,18 @@ pub use errors::*;
 // ---------------------------
 
 /// Alias for `Uuid` indicating that sessions are tracked by keys of this type.
-pub type ClientKeyType = Uuid;
+pub type SessionKeyType = Uuid;
 
 /// The claims validated using JSON Web Tokens.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct JwtClaims {
-    key: ClientKeyType,
+    key: SessionKeyType,
 }
 
 #[derive(Clone, Debug)]
 pub struct CallbackArgs {
     pub cmd: CommandMessage,
-    pub client_key: ClientKeyType,
+    pub session_key: SessionKeyType,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -100,7 +100,7 @@ type CallbackArgReceiver = mpsc::Receiver<CallbackArgs>;
 
 pub struct NewEventStreamConnection {
     pub chunk_sender: EventChunkSender,
-    pub client_key: ClientKeyType,
+    pub session_key: SessionKeyType,
     pub connection_key: ConnectionKeyType,
 }
 pub type NewConnectionSender = mpsc::Sender<NewEventStreamConnection>;
@@ -167,10 +167,6 @@ impl BuiService {
         Some(contents)
     }
 
-    fn get_next_client_key(&self) -> ClientKeyType {
-        Uuid::new_v4()
-    }
-
     fn get_next_connection_key(&self) -> ConnectionKeyType {
         let mut nk = self.next_connection_key.lock().unwrap();
         let result = *nk;
@@ -199,7 +195,7 @@ fn into_bytes(body: hyper::Body) -> futures::BoxFuture<Vec<u8>, hyper::Error> {
 fn get_client_key(headers: &hyper::Headers,
                   cookie_name: &str,
                   jwt_secret: &[u8])
-                  -> Option<ClientKeyType> {
+                  -> Option<SessionKeyType> {
     if let Some(ref cookie) = headers.get::<hyper::header::Cookie>() {
         match cookie.get(&cookie_name) {
             Some(k) => {
@@ -239,8 +235,8 @@ impl hyper::server::Service for BuiService {
 
         if req.method() == &Post {
             if req.path() == "/callback" {
-                let client_key = if let Some(client_key) = opt_client_key {
-                    client_key
+                let session_key = if let Some(session_key) = opt_client_key {
+                    session_key
                 } else {
                     error!("no client key in callback");
                     return futures::future::ok(Response::new()
@@ -263,7 +259,7 @@ impl hyper::server::Service for BuiService {
                                     let cmd_name = cmd.name.clone();
                                     let args = CallbackArgs {
                                         cmd: cmd,
-                                        client_key: client_key,
+                                        session_key: session_key,
                                     };
                                     for tx in cb_tx_vec.drain(..) {
                                         // TODO can we somehow do this without waiting?
@@ -299,13 +295,13 @@ impl hyper::server::Service for BuiService {
             }
         }
 
-        let (client_key, resp) = if let Some(key) = opt_client_key {
+        let (session_key, resp) = if let Some(key) = opt_client_key {
             (key, Response::<hyper::Body>::new())
         } else {
             // There was no valid client key in the HTTP header, so generate a
             // new one and set it on client.
-            let client_key = self.get_next_client_key();
-            let claims = JwtClaims { key: client_key.clone() };
+            let session_key = Uuid::new_v4();
+            let claims = JwtClaims { key: session_key.clone() };
 
             let token = {
                 let jwt_secret = self.jwt_secret.lock().unwrap();
@@ -313,7 +309,7 @@ impl hyper::server::Service for BuiService {
                     .unwrap()
             };
             let cookie = format!("{}={}", self.config.cookie_name, token);
-            (client_key,
+            (session_key,
              Response::<hyper::Body>::new().with_header(hyper::header::SetCookie(vec![cookie])))
         };
 
@@ -354,7 +350,7 @@ impl hyper::server::Service for BuiService {
                                 let tx_new_conn = self.tx_new_connection.clone();
                                 let conn_info = NewEventStreamConnection {
                                     chunk_sender: tx_event_stream,
-                                    client_key: client_key,
+                                    session_key: session_key,
                                     connection_key: connection_key,
                                 };
 

@@ -1,5 +1,5 @@
 /// The API in this module is likely to change as ergonomics get better.
-use {BuiService, ConnectionKeyType, ClientKeyType, EventChunkSender, CallbackArgReceiver, Config,
+use {BuiService, ConnectionKeyType, SessionKeyType, EventChunkSender, CallbackArgReceiver, Config,
      launcher};
 use {std, hyper, serde_json, futures};
 
@@ -40,7 +40,7 @@ pub enum ConnectionEventType {
 #[derive(Debug)]
 pub struct ConnectionEvent {
     pub typ: ConnectionEventType,
-    pub client_key: ClientKeyType,
+    pub session_key: SessionKeyType,
     pub connection_key: ConnectionKeyType,
 }
 
@@ -50,7 +50,7 @@ pub struct BuiAppInner<T>
     where T: Clone + PartialEq + Serialize // + Deserialize + 'static
 {
     i_shared_arc: Arc<Mutex<DataTracker<T>>>,
-    i_txers: Arc<Mutex<HashMap<ConnectionKeyType, (ClientKeyType, EventChunkSender)>>>,
+    i_txers: Arc<Mutex<HashMap<ConnectionKeyType, (SessionKeyType, EventChunkSender)>>>,
     i_bui_server: BuiService,
     i_hyper_server: hyper::Server<NewBuiService, hyper::Body>,
 }
@@ -87,7 +87,7 @@ impl<T> BuiAppInner<T>
         let handle_connections = rx_conn.for_each(move |conn_info| {
 
             let tx = conn_info.chunk_sender;
-            let ckey = conn_info.client_key;
+            let ckey = conn_info.session_key;
             let connection_key = conn_info.connection_key;
 
             // send current value on initial connect
@@ -100,8 +100,8 @@ impl<T> BuiAppInner<T>
 
             let nct = new_conn_tx2.clone();
             let typ = ConnectionEventType::Connect;
-            let client_key = ckey.clone();
-            nct.send(ConnectionEvent {typ,client_key,connection_key}).wait().unwrap();
+            let session_key = ckey.clone();
+            nct.send(ConnectionEvent {typ,session_key,connection_key}).wait().unwrap();
 
             match tx.send(Ok(hc)).wait() {
                 Ok(tx) => {
@@ -134,7 +134,7 @@ impl<T> BuiAppInner<T>
                     let mut sources = txers.lock().unwrap();
                     let mut restore = vec![];
 
-                    for (connection_key, (client_key, tx)) in sources.drain() {
+                    for (connection_key, (session_key, tx)) in sources.drain() {
 
                         let hc: hyper::Chunk = {
                             let buf = serde_json::to_string(&new_value).expect("encode");
@@ -144,7 +144,7 @@ impl<T> BuiAppInner<T>
 
                         match tx.send(Ok(hc)).wait() {
                             Ok(tx) => {
-                                restore.push((connection_key, (client_key, tx)));
+                                restore.push((connection_key, (session_key, tx)));
                             }
                             Err(e) => {
                                 info!("failed to send data to event stream, client \
@@ -152,7 +152,7 @@ impl<T> BuiAppInner<T>
                                       e);
                                 let nct = new_conn_tx.clone();
                                 let typ = ConnectionEventType::Disconnect;
-                                nct.send(ConnectionEvent {typ,client_key,connection_key}).wait().unwrap();
+                                nct.send(ConnectionEvent {typ,session_key,connection_key}).wait().unwrap();
                             }
                         };
                     }
@@ -175,7 +175,7 @@ impl<T> BuiAppInner<T>
     }
 
     pub fn txers(&self)
-                 -> &Arc<Mutex<HashMap<ConnectionKeyType, (ClientKeyType, EventChunkSender)>>> {
+                 -> &Arc<Mutex<HashMap<ConnectionKeyType, (SessionKeyType, EventChunkSender)>>> {
         &self.i_txers
     }
 
