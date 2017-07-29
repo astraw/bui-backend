@@ -205,7 +205,7 @@ fn get_client_key(headers: &hyper::Headers,
                               .map(|token| token.claims.key) {
                     Ok(k) => Some(k),
                     Err(e) => {
-                        error!("client passed token {:?}, resulting in error: {:?}", k, e);
+                        warn!("client passed token {:?}, resulting in error: {:?}", k, e);
                         None
                     }
                 }
