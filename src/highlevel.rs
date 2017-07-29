@@ -86,7 +86,7 @@ impl<T> BuiAppInner<T>
         let new_conn_tx2 = new_conn_tx.clone();
         let handle_connections = rx_conn.for_each(move |conn_info| {
 
-            let tx = conn_info.chunk_sender;
+            let chunk_sender = conn_info.chunk_sender;
             let ckey = conn_info.session_key;
             let connection_key = conn_info.connection_key;
 
@@ -101,12 +101,17 @@ impl<T> BuiAppInner<T>
             let nct = new_conn_tx2.clone();
             let typ = ConnectionEventType::Connect;
             let session_key = ckey.clone();
-            nct.send(ConnectionEvent {typ,session_key,connection_key}).wait().unwrap();
+            match nct.send(ConnectionEvent {typ,session_key,connection_key}).wait(){
+                Ok(_tx) => {},
+                Err(e) => {
+                    info!("failed sending ConnectionEvent. probably no listener. {:?}", e);
+                }
+            };
 
-            match tx.send(Ok(hc)).wait() {
-                Ok(tx) => {
+            match chunk_sender.send(Ok(hc)).wait() {
+                Ok(chunk_sender) => {
                     let mut txer_guard = txers2.lock().unwrap();
-                    txer_guard.insert(connection_key, (ckey, tx));
+                    txer_guard.insert(connection_key, (ckey, chunk_sender));
                     futures::future::ok(())
                 }
                 Err(e) => {
@@ -152,7 +157,13 @@ impl<T> BuiAppInner<T>
                                       e);
                                 let nct = new_conn_tx.clone();
                                 let typ = ConnectionEventType::Disconnect;
-                                nct.send(ConnectionEvent {typ,session_key,connection_key}).wait().unwrap();
+                                match nct.send(ConnectionEvent {typ,session_key,connection_key}).wait(){
+                                    Ok(_tx) => {},
+                                    Err(e) => {
+                                        info!("failed sending ConnectionEvent. probably no listener. {:?}", e);
+                                    }
+                                };
+
                             }
                         };
                     }
