@@ -16,12 +16,13 @@ extern crate hyper;
 extern crate dotenv;
 extern crate futures;
 extern crate serde;
+extern crate tokio_core;
 
 use raii_change_tracker::DataTracker;
 use bui_backend::Result;
 use bui_backend::highlevel::BuiAppInner;
 
-use futures::Stream;
+use futures::{Future, Stream};
 
 include!(concat!(env!("OUT_DIR"), "/public.rs")); // Despite slash, this does work on Windows.
 
@@ -119,6 +120,10 @@ impl MyApp {
 
     }
 
+    fn handle(&self) -> tokio_core::reactor::Handle {
+        self.inner.hyper_server().handle()
+    }
+
     fn run(self) -> std::result::Result<(), hyper::Error> {
         self.inner.into_hyper_server().run()
     }
@@ -145,20 +150,22 @@ fn run() -> Result<()> {
     let my_app = MyApp::new(&secret, &http_server_addr, config);
 
     let tracker_arc = my_app.inner.shared_arc().clone();
-    // update the shared store with a timer
-    std::thread::spawn(move || {
-        let mut counter = 0;
-        loop {
-            {
-                // create a small scope for this update
-                let mut shared_store = tracker_arc.lock().unwrap();
-                let mut shared = shared_store.as_tracked_mut();
-                shared.counter = counter;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(1000));
-            counter += 1;
-        }
+
+    let handle = my_app.handle();
+    let interval_stream: tokio_core::reactor::Interval =
+        tokio_core::reactor::Interval::new(std::time::Duration::from_millis(1000),&handle)
+        .unwrap();
+
+    let stream_future = interval_stream.for_each(move |_| {
+        let mut shared_store = tracker_arc.lock().unwrap();
+        let mut shared = shared_store.as_tracked_mut();
+        shared.counter += 1;
+        Ok(())
+    }).map_err(|e| {
+        error!("interval error {:?}", e);
+        ()
     });
+    my_app.handle().spawn(stream_future);
 
     println!("Listening on http://{}", http_server_addr);
     my_app.run()?;
