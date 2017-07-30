@@ -33,7 +33,7 @@ impl NewService for NewBuiService {
 
 #[derive(Debug)]
 pub enum ConnectionEventType {
-    Connect,
+    Connect(EventChunkSender),
     Disconnect,
 }
 
@@ -99,7 +99,7 @@ impl<T> BuiAppInner<T>
             };
 
             let nct = new_conn_tx2.clone();
-            let typ = ConnectionEventType::Connect;
+            let typ = ConnectionEventType::Connect(chunk_sender.clone());
             let session_key = ckey.clone();
             match nct.send(ConnectionEvent {typ,session_key,connection_key}).wait(){
                 Ok(_tx) => {},
@@ -185,12 +185,7 @@ impl<T> BuiAppInner<T>
         &self.i_shared_arc
     }
 
-    pub fn txers(&self)
-                 -> &Arc<Mutex<HashMap<ConnectionKeyType, (SessionKeyType, EventChunkSender)>>> {
-        &self.i_txers
-    }
-
-    pub fn bui_server(&self) -> &BuiService {
+    pub fn bui_service(&self) -> &BuiService {
         &self.i_bui_server
     }
 
