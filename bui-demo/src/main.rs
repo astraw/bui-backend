@@ -19,7 +19,7 @@ extern crate serde;
 extern crate tokio_core;
 
 use raii_change_tracker::DataTracker;
-use bui_backend::Result;
+use bui_backend::errors::Result;
 use bui_backend::highlevel::BuiAppInner;
 
 use futures::{Future, Stream};

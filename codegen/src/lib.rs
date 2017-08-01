@@ -64,7 +64,7 @@ fn include_config<P, Q>(files_dir: P, codegen_fname: Q) -> Result<(), Box<Error>
 
     let mut f = OpenOptions::new().append(true).open(dest_path)?;
 
-    writeln!(f, "use bui_backend::Config;")?;
+    writeln!(f, "use bui_backend::lowlevel::Config;")?;
     writeln!(f, "fn get_default_config() -> Config {{")?;
     writeln!(f, "    Config {{")?;
     writeln!(f,
