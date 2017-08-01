@@ -92,7 +92,7 @@ var SeverEvents = {
 
             source.addEventListener('message', function (e) {
                 var parsed = JSON.parse(e.data);
-                sever_event_obj.onmessage(parsed);
+                sever_event_obj.onmessage(parsed.bui_backend);
             }, false);
 
             source.addEventListener('open', function (e) {

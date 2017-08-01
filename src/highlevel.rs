@@ -44,6 +44,13 @@ pub struct ConnectionEvent {
     pub connection_key: ConnectionKeyType,
 }
 
+#[derive(Serialize)]
+struct EventStreamMessage<'a,T>
+    where T: 'a + Serialize,
+{
+    bui_backend: &'a T
+}
+
 // ------
 
 pub struct BuiAppInner<T>
@@ -93,7 +100,8 @@ impl<T> BuiAppInner<T>
             // send current value on initial connect
             let hc: hyper::Chunk = {
                 let shared = shared_arc.lock().unwrap();
-                let buf = serde_json::to_string(shared.as_ref()).expect("encode");
+                let msg = EventStreamMessage {bui_backend: shared.as_ref()};
+                let buf = serde_json::to_string(&msg).expect("encode");
                 let buf = format!("data: {}\n\n", buf);
                 buf.into()
             };
@@ -142,7 +150,8 @@ impl<T> BuiAppInner<T>
                     for (connection_key, (session_key, tx)) in sources.drain() {
 
                         let hc: hyper::Chunk = {
-                            let buf = serde_json::to_string(&new_value).expect("encode");
+                            let msg = EventStreamMessage {bui_backend: &new_value};
+                            let buf = serde_json::to_string(&msg).expect("encode");
                             let buf = format!("data: {}\n\n", buf);
                             buf.into()
                         };

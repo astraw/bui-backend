@@ -25,6 +25,10 @@ type alias ServerState = { name : String, is_recording : Bool, counter: Int }
 
 decodeServerState : Decoder ServerState
 decodeServerState =
+  field "bui_backend" decodeInnerServerState
+
+decodeInnerServerState : Decoder ServerState
+decodeInnerServerState =
   map3 ServerState
     (field "name" string)
     (field "is_recording" bool)
