@@ -23,3 +23,6 @@ extern crate uuid;
 pub mod errors;
 pub mod lowlevel;
 pub mod highlevel;
+
+pub use errors::{Error, ErrorKind, Result};
+pub use lowlevel::{SessionKeyType, ConnectionKeyType, EventChunkSender};

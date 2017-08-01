@@ -20,7 +20,7 @@ extern crate tokio_core;
 
 use raii_change_tracker::DataTracker;
 use bui_backend::errors::Result;
-use bui_backend::highlevel::BuiAppInner;
+use bui_backend::highlevel::{BuiAppInner, create_bui_app_inner};
 
 use futures::{Future, Stream};
 
@@ -72,8 +72,7 @@ impl MyApp {
 
         let addr = http_server_addr.parse().unwrap();
 
-        // This is essentially a call to BuiAppInner::new().
-        let (_, mut inner) = BuiAppInner::new(&secret, shared_store, &addr, config, chan_size);
+        let (_, mut inner) = create_bui_app_inner(&secret, shared_store, &addr, config, chan_size);
 
         // --- handle callbacks from any connected client
 
