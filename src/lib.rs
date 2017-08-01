@@ -103,12 +103,12 @@ pub struct NewEventStreamConnection {
     pub session_key: SessionKeyType,
     pub connection_key: ConnectionKeyType,
 }
-pub type NewConnectionSender = mpsc::Sender<NewEventStreamConnection>;
+type NewConnectionSender = mpsc::Sender<NewEventStreamConnection>;
 pub type NewConnectionReceiver = mpsc::Receiver<NewEventStreamConnection>;
 
 pub type ConnectionKeyType = usize;
 
-/// The main type.
+/// Handle HTTP requests and coordinate responses to data updates.
 ///
 /// Implements `hyper::server::Service` to act as HTTP server and handle requests.
 #[derive(Clone)]

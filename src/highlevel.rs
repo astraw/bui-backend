@@ -1,3 +1,4 @@
+//! Helpers for writing browser user interfaces (BUIs).
 /// The API in this module is likely to change as ergonomics get better.
 use {BuiService, ConnectionKeyType, SessionKeyType, EventChunkSender, CallbackArgReceiver, Config,
      launcher};
