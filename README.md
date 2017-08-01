@@ -17,6 +17,9 @@ for callbacks POSTED to a different endpoint. All data is encoded as JSON.
  - Uses [raii-change-tracker](https://crates.io/crates/raii-change-tracker) to
    ensure that server state changes are reactively sent to all connected
    frontends.
+ - To keep things simple, server state is shared with all connected clients.
+ - Session keys (per browser) and connection keys (per tab) are maintained and
+   allow taking control of communication using pre-established event stream.
  - Demo frontends written in Javascript and Elm. (Use `bui-demo` with
    `frontend_js` or `frontend_elm` feature.)
  - Written in async style using
