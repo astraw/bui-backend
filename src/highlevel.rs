@@ -45,10 +45,10 @@ pub struct ConnectionEvent {
 }
 
 #[derive(Serialize)]
-struct EventStreamMessage<'a,T>
-    where T: 'a + Serialize,
+struct EventStreamMessage<'a, T>
+    where T: 'a + Serialize
 {
-    bui_backend: &'a T
+    bui_backend: &'a T,
 }
 
 // ------
@@ -100,7 +100,7 @@ impl<T> BuiAppInner<T>
             // send current value on initial connect
             let hc: hyper::Chunk = {
                 let shared = shared_arc.lock().unwrap();
-                let msg = EventStreamMessage {bui_backend: shared.as_ref()};
+                let msg = EventStreamMessage { bui_backend: shared.as_ref() };
                 let buf = serde_json::to_string(&msg).expect("encode");
                 let buf = format!("data: {}\n\n", buf);
                 buf.into()
@@ -109,10 +109,16 @@ impl<T> BuiAppInner<T>
             let nct = new_conn_tx2.clone();
             let typ = ConnectionEventType::Connect(chunk_sender.clone());
             let session_key = ckey.clone();
-            match nct.send(ConnectionEvent {typ,session_key,connection_key}).wait(){
-                Ok(_tx) => {},
+            match nct.send(ConnectionEvent {
+                               typ,
+                               session_key,
+                               connection_key,
+                           })
+                      .wait() {
+                Ok(_tx) => {}
                 Err(e) => {
-                    info!("failed sending ConnectionEvent. probably no listener. {:?}", e);
+                    info!("failed sending ConnectionEvent. probably no listener. {:?}",
+                          e);
                 }
             };
 
@@ -150,7 +156,7 @@ impl<T> BuiAppInner<T>
                     for (connection_key, (session_key, tx)) in sources.drain() {
 
                         let hc: hyper::Chunk = {
-                            let msg = EventStreamMessage {bui_backend: &new_value};
+                            let msg = EventStreamMessage { bui_backend: &new_value };
                             let buf = serde_json::to_string(&msg).expect("encode");
                             let buf = format!("data: {}\n\n", buf);
                             buf.into()
@@ -161,15 +167,22 @@ impl<T> BuiAppInner<T>
                                 restore.push((connection_key, (session_key, tx)));
                             }
                             Err(e) => {
-                                info!("failed to send data to event stream, client \
+                                info!("Failed to send data to event stream, client \
                                       probably disconnected. {:?}",
                                       e);
                                 let nct = new_conn_tx.clone();
                                 let typ = ConnectionEventType::Disconnect;
-                                match nct.send(ConnectionEvent {typ,session_key,connection_key}).wait(){
-                                    Ok(_tx) => {},
+                                let ce = ConnectionEvent {
+                                    typ,
+                                    session_key,
+                                    connection_key,
+                                };
+                                match nct.send(ce).wait() {
+                                    Ok(_tx) => {}
                                     Err(e) => {
-                                        info!("failed sending ConnectionEvent. probably no listener. {:?}", e);
+                                        info!("Failed to send ConnectionEvent, \
+                                        probably no listener. {:?}",
+                                              e);
                                     }
                                 };
 

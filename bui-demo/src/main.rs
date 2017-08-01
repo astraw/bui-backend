@@ -153,18 +153,20 @@ fn run() -> Result<()> {
 
     let handle = my_app.handle();
     let interval_stream: tokio_core::reactor::Interval =
-        tokio_core::reactor::Interval::new(std::time::Duration::from_millis(1000),&handle)
-        .unwrap();
+        tokio_core::reactor::Interval::new(std::time::Duration::from_millis(1000), &handle)
+            .unwrap();
 
-    let stream_future = interval_stream.for_each(move |_| {
-        let mut shared_store = tracker_arc.lock().unwrap();
-        let mut shared = shared_store.as_tracked_mut();
-        shared.counter += 1;
-        Ok(())
-    }).map_err(|e| {
-        error!("interval error {:?}", e);
-        ()
-    });
+    let stream_future = interval_stream
+        .for_each(move |_| {
+                      let mut shared_store = tracker_arc.lock().unwrap();
+                      let mut shared = shared_store.as_tracked_mut();
+                      shared.counter += 1;
+                      Ok(())
+                  })
+        .map_err(|e| {
+                     error!("interval error {:?}", e);
+                     ()
+                 });
     my_app.handle().spawn(stream_future);
 
     println!("Listening on http://{}", http_server_addr);
