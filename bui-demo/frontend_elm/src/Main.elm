@@ -11,7 +11,6 @@ import Json.Decode exposing (int, string, float, bool, nullable, Decoder, map3, 
 import Json.Encode as Encode
 
 import Material
-import Material.Scheme
 import Material.Options as Options exposing (css)
 import Material.Toggles as Toggles
 import Material.Textfield as Textfield
@@ -148,7 +147,6 @@ view model =
             ]
         ]
       ]}
-      |> Material.Scheme.top
 
 -- TODO FIXME in put is Bool
 do_toggle_record_state : Model -> Bool -> Cmd Msg
