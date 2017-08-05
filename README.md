@@ -1,4 +1,4 @@
-# bui-backend - Brower User Interfaces (BUIs) with Tokio
+# bui-backend - Brower User Interfaces (BUIs) with Tokio [![Status][status-img]][status-url]
 
 **This is a work in progress. The API will likely evolve somewhat. The docs
 need work.**
@@ -47,3 +47,6 @@ input.
 
 - `codegen` - Buildtime codegen support for bui-backend.
 - `bui-demo` - Example program with Javascript and Elm frontends.
+
+[status-img]: https://travis-ci.org/astraw/bui-backend.svg?branch=master
+[status-url]: https://travis-ci.org/astraw/bui-backend

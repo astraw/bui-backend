@@ -1,0 +1,17 @@
+language: rust
+sudo: false
+
+cache: cargo
+
+rust:
+  - stable
+  - beta
+  - nightly
+
+env:
+  matrix:
+    - FEATURE="bundle_files frontend_js"
+    - FEATURE="serve_files frontend_js"
+
+script:
+  - cd bui-demo && cargo build --no-default-features --features="$FEATURE"
