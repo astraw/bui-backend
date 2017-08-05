@@ -1,9 +1,11 @@
-/// A library for creating cross-platform user interfaces based on the browser.
-///
-/// Uses
-/// [server-sent-events](https://html.spec.whatwg.org/multipage/server-sent-events.html)
-/// to push changes to connected clients. Unfortunately [some
-/// browsers](http://caniuse.com/#feat=eventsource) do not support this.
+//! A library for creating cross-platform user interfaces based on the browser.
+//!
+//! Uses
+//! [server-sent-events](https://html.spec.whatwg.org/multipage/server-sent-events.html)
+//! to push changes to connected clients. Unfortunately [some
+//! browsers](http://caniuse.com/#feat=eventsource) do not support this.
+#![deny(missing_docs)]
+
 #[macro_use]
 extern crate serde_derive;
 
@@ -23,6 +25,3 @@ extern crate uuid;
 pub mod errors;
 pub mod lowlevel;
 pub mod highlevel;
-
-pub use errors::{Error, ErrorKind, Result};
-pub use lowlevel::{SessionKeyType, ConnectionKeyType, EventChunkSender};

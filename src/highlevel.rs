@@ -1,10 +1,11 @@
 //! Helpers for writing browser user interfaces (BUIs).
-/// The API in this module is likely to change as ergonomics get better.
+//!
+//! The API in this module is likely to change as ergonomics get better.
 use lowlevel::{BuiService, ConnectionKeyType, SessionKeyType, EventChunkSender,
-               CallbackArgReceiver, Config, launcher};
+               CallbackDataAndSession, Config, launcher, NewBuiService};
 use {std, hyper, serde_json, futures};
 
-use hyper::server::{Http, NewService, Request, Response};
+use hyper::server::Http;
 
 use raii_change_tracker::DataTracker;
 
@@ -15,33 +16,25 @@ use futures::{Future, Sink, Stream};
 use futures::sync::mpsc;
 use serde::Serialize;
 
-pub struct NewBuiService {
-    value: Box<Fn() -> std::result::Result<BuiService, std::io::Error> + Send + Sync>,
-}
-
-impl NewService for NewBuiService {
-    type Request = Request;
-    type Response = Response;
-    type Error = hyper::Error;
-    type Instance = BuiService;
-
-    fn new_service(&self) -> std::result::Result<Self::Instance, std::io::Error> {
-        (self.value)()
-    }
-}
-
 // ------
 
+/// The type of possible connect event, either connect or disconnect.
 #[derive(Debug)]
 pub enum ConnectionEventType {
+    /// A connection event with sink for event stream messages to the connected client.
     Connect(EventChunkSender),
+    /// A disconnection event.
     Disconnect,
 }
 
+/// State associated with connection or disconnection.
 #[derive(Debug)]
 pub struct ConnectionEvent {
+    /// The type of connection for this event.
     pub typ: ConnectionEventType,
+    /// Identifier for the connecting session (one ber browser).
     pub session_key: SessionKeyType,
+    /// Identifier for the connection (one ber tab).
     pub connection_key: ConnectionKeyType,
 }
 
@@ -54,8 +47,9 @@ struct EventStreamMessage<'a, T>
 
 // ------
 
+/// Maintain state within a BUI application.
 pub struct BuiAppInner<T>
-    where T: Clone + PartialEq + Serialize // + Deserialize + 'static
+    where T: Clone + PartialEq + Serialize
 {
     i_shared_arc: Arc<Mutex<DataTracker<T>>>,
     i_txers: Arc<Mutex<HashMap<ConnectionKeyType, (SessionKeyType, EventChunkSender)>>>,
@@ -66,27 +60,33 @@ pub struct BuiAppInner<T>
 impl<T> BuiAppInner<T>
     where T: Clone + PartialEq + Serialize + 'static
 {
+    /// Get reference counted reference to the underlying data store.
     pub fn shared_arc(&self) -> &Arc<Mutex<DataTracker<T>>> {
         &self.i_shared_arc
     }
 
+    /// Get reference to to the underlying `BuiService`.
     pub fn bui_service(&self) -> &BuiService {
         &self.i_bui_server
     }
 
+    /// Get reference to the underlying hyper server.
     pub fn hyper_server(&self) -> &hyper::Server<NewBuiService, hyper::Body> {
         &self.i_hyper_server
     }
 
+    /// Drop self and return only the underlying hyper server.
     pub fn into_hyper_server(self) -> hyper::Server<NewBuiService, hyper::Body> {
         self.i_hyper_server
     }
 
-    pub fn add_callback_listener(&mut self, channel_size: usize) -> CallbackArgReceiver {
+    /// Get a stream of callback events.
+    pub fn add_callback_listener(&mut self, channel_size: usize) -> mpsc::Receiver<CallbackDataAndSession> {
         self.i_bui_server.add_callback_listener(channel_size)
     }
 }
 
+/// Factory function to create a new BUI application.
 pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
                                shared_store: DataTracker<T>,
                                addr: &SocketAddr,
@@ -99,7 +99,7 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
 
     let b2 = bui_server.clone();
 
-    let mbc = NewBuiService { value: Box::new(move || Ok(b2.clone())) };
+    let mbc = NewBuiService::new(Box::new(move || Ok(b2.clone())));
     let hyper_server = Http::new().bind(&addr, mbc).unwrap();
 
     let inner = BuiAppInner {

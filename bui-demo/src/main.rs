@@ -82,10 +82,10 @@ impl MyApp {
             .add_callback_listener(10) // max number of callbacks to buffer
             .for_each(move |msg| {
             let mut shared = tracker_arc2.lock().unwrap();
-            match msg.cmd.name.as_ref() {
+            match msg.name.as_ref() {
                 "set_is_recording" => {
                     // Take generic json value and convert it to a BoolArg.
-                    match serde_json::from_value::<BoolArg>(msg.cmd.args) {
+                    match serde_json::from_value::<BoolArg>(msg.args) {
                         Ok(bool_arg) => {
                             // Update our shared store with the value received.
                             shared.as_tracked_mut().is_recording = bool_arg.value;
@@ -97,7 +97,7 @@ impl MyApp {
                 },
                 "set_name" => {
                     // Take generic json value and convert it to a NameArg.
-                    match serde_json::from_value::<NameArg>(msg.cmd.args) {
+                    match serde_json::from_value::<NameArg>(msg.args) {
                         Ok(name_arg) => {
                             // Update our shared store with the value received.
                             shared.as_tracked_mut().name = name_arg.name;

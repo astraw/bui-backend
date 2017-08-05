@@ -68,7 +68,7 @@ fn include_config<P, Q>(files_dir: P, codegen_fname: Q) -> Result<(), Box<Error>
     writeln!(f, "fn get_default_config() -> Config {{")?;
     writeln!(f, "    Config {{")?;
     writeln!(f,
-             "        serve_filepath: \"{}/\",",
+             "        serve_filepath: std::path::Path::new(\"{}/\"),",
              files_dir.as_ref().display())?;
     #[cfg(feature = "bundle_files")]
     {
