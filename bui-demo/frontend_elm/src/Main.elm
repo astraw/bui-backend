@@ -151,7 +151,7 @@ view model =
 -- TODO FIXME in put is Bool
 do_toggle_record_state : Model -> Bool -> Cmd Msg
 do_toggle_record_state model checked =
-  send_message model "set_is_recording" (Encode.list [Encode.bool checked])
+  send_message model "set_is_recording" (Encode.bool checked)
 
 inputName : String -> Msg
 inputName name =
@@ -159,7 +159,7 @@ inputName name =
 
 do_set_name : Model -> String -> Cmd Msg
 do_set_name model value =
-  send_message model "set_name" (Encode.list [Encode.string value])
+  send_message model "set_name" (Encode.string value)
 
 callbackEncoded : String -> String -> Encode.Value -> Encode.Value
 callbackEncoded token name args =

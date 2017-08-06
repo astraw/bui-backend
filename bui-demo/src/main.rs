@@ -33,16 +33,6 @@ struct Shared {
     name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct BoolArg {
-    value: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct NameArg {
-    name: String,
-}
-
 fn jwt_secret(matches: &clap::ArgMatches) -> Result<Vec<u8>> {
     matches
         .value_of("JWT_SECRET")
@@ -84,26 +74,26 @@ impl MyApp {
             let mut shared = tracker_arc2.lock().unwrap();
             match msg.name.as_ref() {
                 "set_is_recording" => {
-                    // Take generic json value and convert it to a BoolArg.
-                    match serde_json::from_value::<BoolArg>(msg.args) {
-                        Ok(bool_arg) => {
+                    // Take generic json value and convert it to a bool.
+                    match serde_json::from_value::<bool>(msg.args) {
+                        Ok(bool_value) => {
                             // Update our shared store with the value received.
-                            shared.as_tracked_mut().is_recording = bool_arg.value;
+                            shared.as_tracked_mut().is_recording = bool_value;
                         },
                         Err(e) => {
-                            error!("could not cast json value to BoolArg: {:?}", e);
+                            error!("could not cast json value to bool: {:?}", e);
                         },
                     };
                 },
                 "set_name" => {
-                    // Take generic json value and convert it to a NameArg.
-                    match serde_json::from_value::<NameArg>(msg.args) {
-                        Ok(name_arg) => {
+                    // Take generic json value and convert it to a String.
+                    match serde_json::from_value::<String>(msg.args) {
+                        Ok(name) => {
                             // Update our shared store with the value received.
-                            shared.as_tracked_mut().name = name_arg.name;
+                            shared.as_tracked_mut().name = name;
                         },
                         Err(e) => {
-                            error!("could not cast json value to NameArg: {:?}", e);
+                            error!("could not cast json value to String: {:?}", e);
                         },
                     };
                 },

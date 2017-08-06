@@ -77,11 +77,11 @@ function send_message(name,args){
 }
 
 document.getElementById("switch-1").onclick = function(event) {
-    send_message("set_is_recording", [event.target.checked]);
+    send_message("set_is_recording", event.target.checked);
  };
 
 document.getElementById("name-input").addEventListener('blur',function(event) {
-    send_message("set_name",[event.target.value]);
+    send_message("set_name", event.target.value);
 });
 
 var SeverEvents = {
