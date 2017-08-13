@@ -6,7 +6,7 @@ authors = ["Andrew Straw <strawman@astraw.com>"]
 documentation = "https://docs.rs/bui-backend/"
 repository = "https://github.com/astraw/bui-backend"
 readme = "README.md"
-keywords = ["server", "browser user interface", "server sent events", "futures", "tokio"]
+keywords = ["server", "user-interface", "server-sent-events", "futures", "tokio"]
 license = "MIT/Apache-2.0"
 categories = ["gui", "web-programming::http-server"]
 
