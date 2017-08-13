@@ -11,7 +11,7 @@ license = "MIT/Apache-2.0"
 categories = ["gui", "web-programming::http-server"]
 
 [dependencies]
-bui-backend-codegen = {path="codegen", default-features = false}
+bui-backend-codegen = {version="0.1", default-features = false}
 futures = "0.1.11"
 includedir = "0.2.0"
 hyper = "0.11"
