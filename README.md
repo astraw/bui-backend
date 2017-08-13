@@ -3,14 +3,20 @@
 **This is a work in progress. The API will likely evolve somewhat. The docs
 need work.**
 
-This crate implements support for writing a backend for a [Browser User Interface
-(BUI)](https://en.wikipedia.org/wiki/Browser_user_interface) in Rust.
+This library, [bui-backend](https://github.com/astraw/bui-backend), enables an
+application to serve a [Browser User Interface
+(BUI)](https://en.wikipedia.org/wiki/Browser_user_interface). The browser
+becomes your GUI. The API is based on futures and reactively pushes state to the
+browser. Assets can be served from the filesystem or bundled in the executable.
+The server provides an "escape hatch" to allow server-client communication
+outside of bui-backend. [The demo][bui-demo] includes a plain Javascript
+frontend and an Elm frontend.
 
 The operating principle is that the server runs an HTTP server (based on
 [hyper](https://hyper.rs)) to which the browser connects. The initial page tells
 the browser to open a connection to a Server Sent Events endpoint and the server
 can subsequently push updates to the browser. Additionally, the server listens
-for callbacks POSTED to a different endpoint. All data is encoded as JSON.
+for POST callbacks on another endpoint. All data is encoded as JSON.
 
 #### Features
 
@@ -20,8 +26,10 @@ for callbacks POSTED to a different endpoint. All data is encoded as JSON.
  - To keep things simple, server state is shared with all connected clients.
  - Session keys (per browser) and connection keys (per tab) are maintained and
    allow taking control of communication using pre-established event stream.
- - Demo frontends written in Javascript and Elm. (Use `bui-demo` with
-   `frontend_js` or `frontend_elm` feature.)
+   (This is an "escape hatch" to break out of the bui-backend abstractions as
+   required by some use cases.)
+ - Demo frontends written in Javascript and Elm. (Use [`bui-demo`][bui-demo]
+   with `frontend_js` or `frontend_elm` feature.)
  - Written in async style using
    [futures-rs](https://github.com/alexcrichton/futures-rs).
  - Uses [Serde JSON](https://crates.io/crates/serde_json).
@@ -72,3 +80,4 @@ conduct](https://github.com/astraw/bui-backend/blob/master/code_of_conduct.md).
 
 [status-img]: https://travis-ci.org/astraw/bui-backend.svg?branch=master
 [status-url]: https://travis-ci.org/astraw/bui-backend
+[bui-demo]: https://github.com/astraw/bui-backend/tree/master/bui-demo
