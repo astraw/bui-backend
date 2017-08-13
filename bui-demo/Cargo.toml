@@ -7,7 +7,7 @@ repository = "https://github.com/astraw/bui-backend"
 license = "MIT/Apache-2.0"
 
 [dependencies]
-bui-backend = {path="..", default-features = false}
+bui-backend = {version="0.1", default-features = false}
 log = "0.3.6"
 env_logger = "0.4"
 raii-change-tracker = "0.1"
