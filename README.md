@@ -1,4 +1,4 @@
-# bui-backend - Brower User Interfaces (BUIs) with Tokio [![Status][status-img]][status-url]
+# bui-backend - Brower User Interfaces (BUIs) with Tokio [![Status][status-img]][status-url] [![Doc][doc-img]][doc-url]
 
 **This is a work in progress. The API will likely evolve somewhat. The docs
 need work.**
@@ -81,3 +81,5 @@ conduct](https://github.com/astraw/bui-backend/blob/master/code_of_conduct.md).
 [status-img]: https://travis-ci.org/astraw/bui-backend.svg?branch=master
 [status-url]: https://travis-ci.org/astraw/bui-backend
 [bui-demo]: https://github.com/astraw/bui-backend/tree/master/bui-demo
+[doc-img]: https://docs.rs/bui-backend/badge.svg
+[doc-url]: https://docs.rs/bui-backend/
