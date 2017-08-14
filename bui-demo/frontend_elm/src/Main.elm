@@ -148,7 +148,6 @@ view model =
         ]
       ]}
 
--- TODO FIXME in put is Bool
 do_toggle_record_state : Model -> Bool -> Cmd Msg
 do_toggle_record_state model checked =
   send_message model "set_is_recording" (Encode.bool checked)
