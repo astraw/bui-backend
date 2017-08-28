@@ -105,7 +105,15 @@ var SeverEvents = {
 
 
         } else {
-            console.error("no EventSource. failing.");
+            var root = document.getElementById("root");
+            root.innerHTML = ('<div>'+
+                '<h4>EventSource not supported in this browser</h4>'+
+                'Read about EventSource (also known as Server-sent events) at <a '+
+                'href="https://html.spec.whatwg.org/multipage/'+
+                'server-sent-events.html#server-sent-events">whatwg.org</a>.'+
+                'See <a href="http://caniuse.com/#feat=eventsource">caniuse.com</a> for '+
+                'information about which browsers are supported.'+
+                '</div>');
         }
     }
 };
