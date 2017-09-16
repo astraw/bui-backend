@@ -94,17 +94,15 @@ pub struct BuiService {
 
 impl BuiService {
     fn fullpath(&self, path: &str) -> String {
-        assert!(path.starts_with("/"));
+        assert!(path.starts_with("/")); // security check
         let path = std::path::PathBuf::from(path)
             .strip_prefix("/")
             .unwrap()
             .to_path_buf();
+        assert!(!path.starts_with("..")); // security check
+
         let base = std::path::PathBuf::from(self.config.serve_filepath);
         let result = base.join(path);
-
-        // some security checks
-        assert!(!result.starts_with("/"));
-        assert!(!result.starts_with(".."));
         result.into_os_string().into_string().unwrap()
     }
 
