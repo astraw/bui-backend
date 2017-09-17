@@ -1,4 +1,6 @@
+#[cfg(feature = "bundle_files")]
 extern crate includedir_codegen;
+#[cfg(feature = "bundle_files")]
 extern crate walkdir;
 
 use std::io::Write;

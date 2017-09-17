@@ -6,6 +6,10 @@ for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/
 
 ## unreleased
 
+### Fixed
+
+* Remove compiler warnings
+
 ## [0.2.0] - 2017-09-17
 
 ### Changed
