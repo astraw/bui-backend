@@ -36,6 +36,8 @@ pub struct ConnectionEvent {
     pub session_key: SessionKeyType,
     /// Identifier for the connection (one ber tab).
     pub connection_key: ConnectionKeyType,
+    /// The path being requested (starts with `BuiService::events_prefix`).
+    pub path: String,
 }
 
 #[derive(Serialize)]
@@ -52,7 +54,7 @@ pub struct BuiAppInner<T>
     where T: Clone + PartialEq + Serialize
 {
     i_shared_arc: Arc<Mutex<DataTracker<T>>>,
-    i_txers: Arc<Mutex<HashMap<ConnectionKeyType, (SessionKeyType, EventChunkSender)>>>,
+    i_txers: Arc<Mutex<HashMap<ConnectionKeyType, (SessionKeyType, EventChunkSender, String)>>>,
     i_bui_server: BuiService,
     i_hyper_server: hyper::Server<NewBuiService, hyper::Body>,
 }
@@ -91,11 +93,13 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
                                shared_store: DataTracker<T>,
                                addr: &SocketAddr,
                                config: Config,
-                               chan_size: usize)
+                               chan_size: usize,
+                               events_prefix: &str,
+                               )
                                -> (mpsc::Receiver<ConnectionEvent>, BuiAppInner<T>)
     where T: Clone + PartialEq + Serialize + 'static
 {
-    let (rx_conn, bui_server) = launcher(config, &jwt_secret, chan_size);
+    let (rx_conn, bui_server) = launcher(config, &jwt_secret, chan_size, events_prefix);
 
     let b2 = bui_server.clone();
 
@@ -133,10 +137,12 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
         let nct = new_conn_tx2.clone();
         let typ = ConnectionEventType::Connect(chunk_sender.clone());
         let session_key = ckey.clone();
+        let path = conn_info.path.clone();
         match nct.send(ConnectionEvent {
                            typ,
                            session_key,
                            connection_key,
+                           path,
                        })
                   .wait() {
             Ok(_tx) => {}
@@ -149,7 +155,7 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
         match chunk_sender.send(Ok(hc)).wait() {
             Ok(chunk_sender) => {
                 let mut txer_guard = txers2.lock().unwrap();
-                txer_guard.insert(connection_key, (ckey, chunk_sender));
+                txer_guard.insert(connection_key, (ckey, chunk_sender, conn_info.path));
                 futures::future::ok(())
             }
             Err(e) => {
@@ -177,7 +183,7 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
                 let mut sources = txers.lock().unwrap();
                 let mut restore = vec![];
 
-                for (connection_key, (session_key, tx)) in sources.drain() {
+                for (connection_key, (session_key, tx, path)) in sources.drain() {
 
                     let hc: hyper::Chunk = {
                         let msg = EventStreamMessage { bui_backend: &new_value };
@@ -188,7 +194,7 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
 
                     match tx.send(Ok(hc)).wait() {
                         Ok(tx) => {
-                            restore.push((connection_key, (session_key, tx)));
+                            restore.push((connection_key, (session_key, tx, path)));
                         }
                         Err(e) => {
                             info!("Failed to send data to event stream, client \
@@ -200,6 +206,7 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
                                 typ,
                                 session_key,
                                 connection_key,
+                                path,
                             };
                             match nct.send(ce).wait() {
                                 Ok(_tx) => {}

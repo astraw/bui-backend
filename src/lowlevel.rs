@@ -73,6 +73,8 @@ pub struct NewEventStreamConnection {
     pub session_key: SessionKeyType,
     /// Identifier for each connection (one per client tab).
     pub connection_key: ConnectionKeyType,
+    /// The path being requested (starts with `BuiService::events_prefix`).
+    pub path: String,
 }
 
 type NewConnectionSender = mpsc::Sender<NewEventStreamConnection>;
@@ -90,6 +92,7 @@ pub struct BuiService {
     next_connection_key: Arc<Mutex<ConnectionKeyType>>,
     jwt_secret: Arc<Mutex<Vec<u8>>>,
     tx_new_connection: NewConnectionSender,
+    events_prefix: String,
 }
 
 impl BuiService {
@@ -135,6 +138,11 @@ impl BuiService {
             }
         }
         Some(contents)
+    }
+
+    /// Get the event stream path prefix.
+    pub fn events_prefix(&self) -> &str {
+        &self.events_prefix
     }
 
     fn get_next_connection_key(&self) -> ConnectionKeyType {
@@ -289,7 +297,7 @@ impl hyper::server::Service for BuiService {
 
                 let path = if path == "/" { "/index.html" } else { path };
 
-                if path == "/events" {
+                if path.starts_with(&self.events_prefix) {
                     match req.headers().get::<Accept>() {
                         Some(accept_headers) => {
                             let (_, is_eventsource) = accept_headers
@@ -309,8 +317,8 @@ impl hyper::server::Service for BuiService {
                                     (best_qual, is_eventsource)
                                 });
                             if !is_eventsource {
-                                warn!("HTTP GET for /events does not list text/event-stream \
-                                      in accepted header");
+                                warn!("HTTP GET for \"{}\" does not list text/event-stream \
+                                      in accepted header", self.events_prefix);
                             }
 
                             let connection_key = self.get_next_connection_key();
@@ -323,6 +331,7 @@ impl hyper::server::Service for BuiService {
                                     chunk_sender: tx_event_stream,
                                     session_key: session_key,
                                     connection_key: connection_key,
+                                    path: path.to_string(),
                                 };
 
                                 match tx_new_conn.send(conn_info).wait() {
@@ -385,7 +394,9 @@ impl hyper::server::NewService for NewBuiService {
 /// Create a stream of connection events and a `BuiService`.
 pub fn launcher(config: Config,
                 jwt_secret: &[u8],
-                channel_size: usize)
+                channel_size: usize,
+                events_prefix: &str,
+                )
                 -> (mpsc::Receiver<NewEventStreamConnection>, BuiService) {
     let next_connection_key = Arc::new(Mutex::new(0));
 
@@ -400,6 +411,7 @@ pub fn launcher(config: Config,
         next_connection_key: next_connection_key,
         jwt_secret: Arc::new(Mutex::new(jwt_secret.clone())),
         tx_new_connection: tx_new_connection,
+        events_prefix: events_prefix.to_string(),
     };
 
     (rx_new_connection, service)

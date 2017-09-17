@@ -8,6 +8,7 @@ for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/
 
 ### Changed
 
+* Make event URL path configurable and send events whenever prefix used
 * Do not use deprecated futures .boxed() methods and BoxFuture type.
 * Update to error-chain 0.11
 
