@@ -8,14 +8,15 @@ extern crate log;
 extern crate env_logger;
 extern crate raii_change_tracker;
 extern crate bui_backend;
+#[cfg(feature = "bundle_files")]
 extern crate includedir;
+#[cfg(feature = "bundle_files")]
 extern crate phf;
 extern crate serde_json;
 extern crate clap;
 extern crate hyper;
 extern crate dotenv;
 extern crate futures;
-extern crate serde;
 extern crate tokio_core;
 
 use raii_change_tracker::DataTracker;

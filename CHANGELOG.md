@@ -12,6 +12,10 @@ for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/
 * Do not use deprecated futures .boxed() methods and BoxFuture type.
 * Update to error-chain 0.11
 
+### Fixed
+
+* Remove compiler warnings
+
 ## [0.1.1] - 2017-09-16
 
 ### Added
