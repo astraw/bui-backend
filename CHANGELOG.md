@@ -4,6 +4,12 @@ All user visible changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/), as described
 for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/text/1105-api-evolution.md)
 
+## unreleased
+
+### Changed
+
+* Do not use deprecated futures .boxed() methods and BoxFuture type.
+
 ## [0.1.1] - 2017-09-16
 
 ### Added

@@ -155,12 +155,11 @@ impl BuiService {
     }
 }
 
-fn into_bytes(body: hyper::Body) -> futures::BoxFuture<Vec<u8>, hyper::Error> {
-    body.fold(vec![], |mut buf, chunk| {
+fn into_bytes(body: hyper::Body) -> Box<Future<Item=Vec<u8>, Error=hyper::Error>> {
+    Box::new(body.fold(vec![], |mut buf, chunk| {
             buf.extend_from_slice(&*chunk);
             futures::future::ok::<_, hyper::Error>(buf)
-        })
-        .boxed()
+        }))
 }
 
 fn get_client_key(headers: &hyper::Headers,
@@ -192,7 +191,7 @@ impl hyper::server::Service for BuiService {
     type Request = Request;
     type Response = Response;
     type Error = hyper::Error;
-    type Future = futures::BoxFuture<Response, Self::Error>;
+    type Future = Box<Future<Item=Self::Response, Error=Self::Error>>;
 
     fn call(&self, req: Request) -> Self::Future {
 
@@ -210,9 +209,9 @@ impl hyper::server::Service for BuiService {
                     session_key
                 } else {
                     error!("no client key in callback");
-                    return futures::future::ok(Response::new()
+                    return Box::new(futures::future::ok(Response::new()
                         .with_header( hyper::header::ContentType::plaintext() )
-                        .with_status(StatusCode::BadRequest)).boxed();
+                        .with_status(StatusCode::BadRequest)));
                 };
 
                 let bytes_future = into_bytes(req.body()).map_err(|e| e.into());
@@ -263,7 +262,7 @@ impl hyper::server::Service for BuiService {
                         };
                         futures::future::ok(resp)
                     });
-                return resp_future.boxed();
+                return Box::new(resp_future);
             }
         }
 
@@ -355,7 +354,7 @@ impl hyper::server::Service for BuiService {
             }
             _ => resp.with_status(StatusCode::NotFound),
         };
-        futures::future::ok(resp_final).boxed()
+        Box::new(futures::future::ok(resp_final))
     }
 }
 
