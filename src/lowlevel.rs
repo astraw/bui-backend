@@ -19,7 +19,8 @@ use std::io::Read;
 
 // ---------------------------
 
-/// Alias for `Uuid` indicating that sessions are tracked by keys of this type (one per client browser).
+/// Alias for `Uuid` indicating that sessions are tracked
+/// by keys of this type (one per client browser).
 pub type SessionKeyType = Uuid;
 
 /// The claims validated using JSON Web Tokens.
@@ -153,7 +154,9 @@ impl BuiService {
     }
 
     /// Get a stream of callback events.
-    pub fn add_callback_listener(&mut self, channel_size: usize) -> mpsc::Receiver<CallbackDataAndSession> {
+    pub fn add_callback_listener(&mut self,
+                                 channel_size: usize)
+                                 -> mpsc::Receiver<CallbackDataAndSession> {
         let (tx, rx) = mpsc::channel(channel_size);
         {
             let mut cb_tx_vec = self.callback_senders.lock().unwrap();
@@ -163,11 +166,11 @@ impl BuiService {
     }
 }
 
-fn into_bytes(body: hyper::Body) -> Box<Future<Item=Vec<u8>, Error=hyper::Error>> {
+fn into_bytes(body: hyper::Body) -> Box<Future<Item = Vec<u8>, Error = hyper::Error>> {
     Box::new(body.fold(vec![], |mut buf, chunk| {
-            buf.extend_from_slice(&*chunk);
-            futures::future::ok::<_, hyper::Error>(buf)
-        }))
+        buf.extend_from_slice(&*chunk);
+        futures::future::ok::<_, hyper::Error>(buf)
+    }))
 }
 
 fn get_client_key(headers: &hyper::Headers,
@@ -199,7 +202,7 @@ impl hyper::server::Service for BuiService {
     type Request = Request;
     type Response = Response;
     type Error = hyper::Error;
-    type Future = Box<Future<Item=Self::Response, Error=Self::Error>>;
+    type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
 
     fn call(&self, req: Request) -> Self::Future {
 
@@ -318,7 +321,8 @@ impl hyper::server::Service for BuiService {
                                 });
                             if !is_eventsource {
                                 warn!("HTTP GET for \"{}\" does not list text/event-stream \
-                                      in accepted header", self.events_prefix);
+                                      in accepted header",
+                                      self.events_prefix);
                             }
 
                             let connection_key = self.get_next_connection_key();
@@ -395,8 +399,7 @@ impl hyper::server::NewService for NewBuiService {
 pub fn launcher(config: Config,
                 jwt_secret: &[u8],
                 channel_size: usize,
-                events_prefix: &str,
-                )
+                events_prefix: &str)
                 -> (mpsc::Receiver<NewEventStreamConnection>, BuiService) {
     let next_connection_key = Arc::new(Mutex::new(0));
 

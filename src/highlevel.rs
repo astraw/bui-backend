@@ -83,7 +83,9 @@ impl<T> BuiAppInner<T>
     }
 
     /// Get a stream of callback events.
-    pub fn add_callback_listener(&mut self, channel_size: usize) -> mpsc::Receiver<CallbackDataAndSession> {
+    pub fn add_callback_listener(&mut self,
+                                 channel_size: usize)
+                                 -> mpsc::Receiver<CallbackDataAndSession> {
         self.i_bui_server.add_callback_listener(channel_size)
     }
 }
@@ -94,8 +96,7 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
                                addr: &SocketAddr,
                                config: Config,
                                chan_size: usize,
-                               events_prefix: &str,
-                               )
+                               events_prefix: &str)
                                -> (mpsc::Receiver<ConnectionEvent>, BuiAppInner<T>)
     where T: Clone + PartialEq + Serialize + 'static
 {

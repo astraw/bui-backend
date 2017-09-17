@@ -68,8 +68,8 @@ impl MyApp {
         // Create `inner`, which takes care of the browser communication details for us.
         let chan_size = 10;
         let addr = http_server_addr.parse().unwrap();
-        let (_, mut inner) = create_bui_app_inner(&secret, shared_store, &addr, config,
-            chan_size, "/events");
+        let (_, mut inner) =
+            create_bui_app_inner(&secret, shared_store, &addr, config, chan_size, "/events");
 
         // Make a clone of our shared state which will be moved into our callback handler.
         let tracker_arc2 = inner.shared_arc().clone();
