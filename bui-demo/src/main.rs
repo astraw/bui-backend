@@ -25,6 +25,7 @@ use bui_backend::highlevel::{BuiAppInner, create_bui_app_inner};
 
 use futures::{Future, Stream};
 
+// Include the files to be served and define `fn get_default_config()`.
 include!(concat!(env!("OUT_DIR"), "/public.rs")); // Despite slash, this does work on Windows.
 
 /// The state that is automatically updated in the browser whenever it changes on the server.
