@@ -4,8 +4,10 @@
 //! becomes your GUI. The API is based on futures and reactively pushes state to
 //! the browser. Assets can be served from the filesystem or bundled in the
 //! executable. The server provides an "escape hatch" to allow server-client
-//! communication outside of bui-backend. [The demo][bui-demo] includes a plain
-//! Javascript frontend and an Elm frontend.
+//! communication outside of bui-backend. [The demo][bui-demo] includes a Rust
+//! web assembly (wasm), plain Javascript frontend and an Elm frontend.
+//! Together, this lets you ship an application written in Rust as a single file
+//! with a browser-based UI.
 //!
 //! The operating principle is that the server runs an HTTP server (based on
 //! [hyper](https://hyper.rs)) to which the browser connects. The initial page
@@ -25,8 +27,9 @@
 //!    and allow taking control of communication using pre-established event
 //!    stream. (This is an "escape hatch" to break out of the bui-backend
 //!    abstractions as required by some use cases.)
-//!  - Demo frontends written in Javascript and Elm. (Use [`bui-demo`][bui-demo]
-//!    with `frontend_js` or `frontend_elm` feature.)
+//!  - Demo frontends written in Rust web assembly (wasm), Javascript and Elm. (Use
+//!    [`bui-demo`][bui-demo] with `frontend_rust_wasm`, `frontend_js`,
+//!    or `frontend_elm` feature.)
 //!  - Written in async style using
 //!    [futures-rs](https://github.com/alexcrichton/futures-rs).
 //!  - Uses [Serde JSON](https://crates.io/crates/serde_json).

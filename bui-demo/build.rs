@@ -10,3 +10,9 @@ fn main() {
     let files_dir: std::path::PathBuf = ["frontend_elm", "dist"].iter().collect();
     bui_backend_codegen::codegen(&files_dir, "public.rs").expect("codegen failed");
 }
+
+#[cfg(feature = "frontend_rust_wasm")]
+fn main() {
+    let files_dir: std::path::PathBuf = ["frontend_rust_wasm", "dist"].iter().collect();
+    bui_backend_codegen::codegen(&files_dir, "public.rs").expect("codegen failed");
+}

@@ -6,6 +6,10 @@ for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/
 
 ## unreleased
 
+### Added
+
+* Implmented new Rust wasm (Web Assembly) frontend demo.
+
 ### Changed
 
 * Update to jsonwebtoken 3.

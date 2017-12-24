@@ -38,3 +38,5 @@ serve_files = ["bui-backend/serve_files", "bui-backend-codegen/serve_files"]
 frontend_js = []
 # Use the Elm frontend
 frontend_elm = []
+# Use the Rust frontend
+frontend_rust_wasm = []
