@@ -5,6 +5,7 @@ port module Main exposing (..)
 import Http
 
 import Html exposing (..)
+import Html.Events
 import Json.Decode
 import Json.Decode as Decode
 import Json.Decode exposing (int, string, float, bool, nullable, Decoder, map3, map2, list, field)
@@ -57,7 +58,7 @@ type Msg
   = NewServerState ServerState
   | NewToken String
   | ToggleRecordState Bool
-  | SetNameOnServer String
+  | SetNameOnServer
   | SetNameLocal String
   | Mdl (Material.Msg Msg)
   | FailedDecode String
@@ -80,7 +81,7 @@ update msg model =
 
     ToggleRecordState checked -> (model, do_toggle_record_state model checked)
 
-    SetNameOnServer value -> (model, do_set_name model value)
+    SetNameOnServer -> (model, do_set_name model model.local_name)
 
     SetNameLocal str -> ({model | local_name = str}, Cmd.none)
 
@@ -136,7 +137,8 @@ view model =
                   , Textfield.floatingLabel
                   , Textfield.value model.local_name
                   , Options.onInput inputName
-                  , Options.onBlur (SetNameOnServer model.local_name)
+                  , Options.onBlur SetNameOnServer
+                  , Options.on "keypress" (Json.Decode.andThen isEnter Html.Events.keyCode)
                   , Textfield.text_
                   ]
                   []
@@ -147,6 +149,13 @@ view model =
             ]
         ]
       ]}
+
+isEnter : number -> Json.Decode.Decoder Msg
+isEnter code =
+   if code == 13 then
+      Json.Decode.succeed SetNameOnServer
+   else
+      Json.Decode.fail "not Enter"
 
 do_toggle_record_state : Model -> Bool -> Cmd Msg
 do_toggle_record_state model checked =

@@ -9,6 +9,7 @@ for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/
 ### Changed
 
 * Update to jsonwebtoken 3.
+* All frontend demos also send name to server on "Enter" keypress.
 
 ### Fixed
 

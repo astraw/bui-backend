@@ -84,6 +84,13 @@ document.getElementById("name-input").addEventListener('blur',function(event) {
     send_message("set_name", event.target.value);
 });
 
+document.getElementById("name-input").addEventListener('keypress',function(event) {
+    if (event.key == "Enter") {
+        send_message("set_name", event.target.value);
+        document.getElementById("name-input").blur();
+    }
+});
+
 var SeverEvents = {
     init: function (sever_event_obj) {
 
