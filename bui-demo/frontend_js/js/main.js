@@ -70,7 +70,7 @@ function send_message(name,args){
     };
     var buf = JSON.stringify(msg);
 
-    httpRequest = new XMLHttpRequest();
+    var httpRequest = new XMLHttpRequest();
     httpRequest.open('POST', 'callback');
     httpRequest.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
     httpRequest.send(buf);
