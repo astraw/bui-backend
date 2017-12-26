@@ -2,9 +2,10 @@
 extern crate stdweb;
 extern crate serde;
 #[macro_use]
-extern crate serde_derive;
-#[macro_use]
 extern crate serde_json;
+extern crate bui_demo_data;
+
+use bui_demo_data::Shared;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -23,14 +24,6 @@ macro_rules! enclose {
             $y
         }
     };
-}
-
-// TODO: single definition (shared with bui_demo)
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-struct Shared {
-    is_recording: bool,
-    counter: usize,
-    name: String,
 }
 
 type StateRef = Rc<RefCell<Option<Shared>>>;

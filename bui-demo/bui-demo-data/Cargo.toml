@@ -1,0 +1,8 @@
+[package]
+name = "bui-demo-data"
+version = "0.1.0"
+authors = ["Andrew Straw <strawman@astraw.com>"]
+
+[dependencies]
+serde = "1.0"
+serde_derive = "1.0"

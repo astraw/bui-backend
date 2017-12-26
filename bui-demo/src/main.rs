@@ -1,6 +1,4 @@
 #[macro_use]
-extern crate serde_derive;
-#[macro_use]
 extern crate error_chain;
 
 #[macro_use]
@@ -18,23 +16,17 @@ extern crate hyper;
 extern crate dotenv;
 extern crate futures;
 extern crate tokio_core;
+extern crate bui_demo_data;
 
 use raii_change_tracker::DataTracker;
 use bui_backend::errors::Result;
 use bui_backend::highlevel::{BuiAppInner, create_bui_app_inner};
 
 use futures::{Future, Stream};
+use bui_demo_data::Shared;
 
 // Include the files to be served and define `fn get_default_config()`.
 include!(concat!(env!("OUT_DIR"), "/public.rs")); // Despite slash, this does work on Windows.
-
-/// The state that is automatically updated in the browser whenever it changes on the server.
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-struct Shared {
-    is_recording: bool,
-    counter: usize,
-    name: String,
-}
 
 /// Parse the JWT secret from command-line args or environment variables.
 fn jwt_secret(matches: &clap::ArgMatches) -> Result<Vec<u8>> {

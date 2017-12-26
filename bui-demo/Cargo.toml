@@ -14,7 +14,6 @@ raii-change-tracker = "0.1"
 includedir = "0.2.0"
 phf = "0.7.12"
 serde = "1.0"
-serde_derive = "1.0"
 serde_json = "1.0"
 clap = "2.20.0"
 error-chain = "0.11"
@@ -22,6 +21,7 @@ hyper = "0.11"
 dotenv = "0.10"
 futures = "0.1"
 tokio-core = "0.1"
+bui-demo-data = {path="bui-demo-data"}
 
 [build-dependencies]
 bui-backend-codegen = {version = "0.1", default-features = false, path="../codegen"}
