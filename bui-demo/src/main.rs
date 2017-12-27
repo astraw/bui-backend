@@ -121,7 +121,7 @@ impl MyApp {
         MyApp { inner: inner }
     }
 
-    /// Geat a handle to our event loop.
+    /// Get a handle to our event loop.
     fn handle(&self) -> tokio_core::reactor::Handle {
         self.inner.hyper_server().handle()
     }
