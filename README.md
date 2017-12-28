@@ -15,9 +15,11 @@ application written in Rust as a single file with a browser-based UI.
 
 The operating principle is that the server runs an HTTP server (based on
 [hyper](https://hyper.rs)) to which the browser connects. The initial page tells
-the browser to open a connection to a Server Sent Events endpoint and the server
-can subsequently push updates to the browser. Additionally, the server listens
-for POST callbacks on another endpoint. All data is encoded as JSON.
+the browser to open a connection to a [Server Sent
+Events](https://html.spec.whatwg.org/multipage/server-sent-events.html) endpoint
+and the server can subsequently push updates to the browser. Additionally, the
+server listens for POST callbacks on another endpoint. All data is encoded as
+JSON.
 
 #### Features
 
@@ -41,6 +43,12 @@ for POST callbacks on another endpoint. All data is encoded as JSON.
 #### Potential improvements
 
  - Add example with user login.
+ - Implement more sophisticated state-sharing allowing partial views and
+   minimal updates.
+ - When [`ReadableStream`](https://caniuse.com/#search=ReadableStream) is more
+   widely supported, use it (instead of [`Server Sent
+   Events`](https://caniuse.com/#search=EventSource)).
+ - Your idea here.
 
 #### Security warning
 
