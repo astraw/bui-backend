@@ -15,3 +15,7 @@ env:
 
 script:
   - cd bui-demo && cargo build --no-default-features --features="$FEATURE"
+
+matrix:
+  allow_failures:
+    - rust: nightly
