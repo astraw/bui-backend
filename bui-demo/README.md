@@ -19,9 +19,9 @@ To run with default features `bundle_files` and `frontend_js` (webserver files
 are bundled into executable, plain Javascript frontend):
 
     # from the bui-demo directory
-    cargo run -- --jwt-secret=abc123
+    cargo run
 
-    # Now point your browser to http://127.0.0.1:3410
+    # Now point your browser to http://localhost:3410
 
 To run with other options:
 

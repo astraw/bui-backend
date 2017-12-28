@@ -18,6 +18,8 @@ extern crate futures;
 extern crate tokio_core;
 extern crate bui_demo_data;
 
+use std::net::ToSocketAddrs;
+
 use raii_change_tracker::DataTracker;
 use bui_backend::errors::Result;
 use bui_backend::highlevel::{BuiAppInner, create_bui_app_inner};
@@ -28,28 +30,48 @@ use bui_demo_data::Shared;
 // Include the files to be served and define `fn get_default_config()`.
 include!(concat!(env!("OUT_DIR"), "/public.rs")); // Despite slash, this does work on Windows.
 
-/// Parse the JWT secret from command-line args or environment variables.
-fn jwt_secret(matches: &clap::ArgMatches) -> Result<Vec<u8>> {
-    matches
-        .value_of("JWT_SECRET")
-        .map(|s| s.into())
-        .or(std::env::var("JWT_SECRET").ok())
-        .map(|s| s.into_bytes())
-        .ok_or_else(|| {
-                        "The --jwt-secret argument must be passed or the JWT_SECRET environment \
-                  variable must be set."
-                                .into()
-                    })
-}
-
 /// The structure that holds our app data
 struct MyApp {
     inner: BuiAppInner<Shared>,
 }
 
+fn address( matches: &clap::ArgMatches ) -> std::net::SocketAddr {
+    let host = matches.value_of( "host" ).unwrap();
+    let port = matches.value_of( "port" ).unwrap();
+    format!( "{}:{}", host, port ).to_socket_addrs().unwrap().next().unwrap()
+}
+
+fn is_loopback(addr_any: &std::net::SocketAddr) -> bool {
+    match addr_any {
+        &std::net::SocketAddr::V4(addr) => addr.ip().is_loopback(),
+        &std::net::SocketAddr::V6(addr) => addr.ip().is_loopback(),
+    }
+}
+
+/// Parse the JWT secret from command-line args or environment variables.
+fn jwt_secret(matches: &clap::ArgMatches, required: bool) -> Result<Vec<u8>> {
+    match matches
+        .value_of("JWT_SECRET")
+        .map(|s| s.into())
+        .or(std::env::var("JWT_SECRET").ok())
+        .map(|s| s.into_bytes())
+    {
+        Some(secret) => Ok(secret),
+        None => {
+            if required {
+                Err("The --jwt-secret argument must be passed or the JWT_SECRET environment \
+                variable must be set when not using loopback interface."
+                            .into())
+            } else {
+                Ok(b"jwt_secret".to_vec())
+            }
+        }
+    }
+}
+
 impl MyApp {
     /// Create our app
-    fn new(secret: &[u8], http_server_addr: &str, config: Config) -> Self {
+    fn new(secret: &[u8], addr: &std::net::SocketAddr, config: Config) -> Self {
 
         // Create our shared state.
         let shared_store = DataTracker::new(Shared {
@@ -60,11 +82,10 @@ impl MyApp {
 
         // Create `inner`, which takes care of the browser communication details for us.
         let chan_size = 10;
-        let addr = http_server_addr.parse().unwrap();
         let (_, mut inner) =
             create_bui_app_inner(&secret, shared_store, &addr, config, chan_size, "/events");
 
-        // Make a clone of our shared state which will be moved into our callback handler.
+        // Make a clone of our shared state Arc which will be moved into our callback handler.
         let tracker_arc2 = inner.shared_arc().clone();
 
         // Create a Stream to handle callbacks from clients.
@@ -149,12 +170,26 @@ fn run() -> Result<()> {
                 environment variable if unspecified.")
                  .global(true)
                  .takes_value(true))
+        .arg(clap::Arg::with_name( "host" )
+                .long( "host" )
+                .help( "Bind the server to this address")
+                .default_value("localhost")
+                .value_name( "HOST" )
+                .takes_value( true ))
+        .arg(clap::Arg::with_name( "port" )
+                .long( "port" )
+                .help( "Bind the server to this port, default 3410" )
+                .default_value("3410")
+                .value_name( "PORT" )
+                .takes_value( true )
+        )
         .get_matches();
 
-    // Get our JWT secret.
-    let secret = jwt_secret(&matches)?;
+    let http_server_addr = address(&matches);
 
-    let http_server_addr = "127.0.0.1:3410";
+    // Get our JWT secret.
+    let required = !is_loopback(&http_server_addr);
+    let secret = jwt_secret(&matches, required)?;
 
     // This `get_default_config()` function is created by bui_backend_codegen
     // and is pulled in here by the `include!` macro above.
