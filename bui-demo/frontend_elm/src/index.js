@@ -14,7 +14,7 @@ function start() {
             app.ports.event_source_connected.send(true);
         }, false);
 
-        source.addEventListener('close', function (e) {
+        source.addEventListener('error', function (e) {
             app.ports.event_source_connected.send(false);
         }, false);
 

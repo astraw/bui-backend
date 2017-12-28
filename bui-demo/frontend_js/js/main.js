@@ -2,8 +2,8 @@ var sever_event_obj = {
     onopen: function() {
         this._set_mirror("connecting");
     },
-    onclose: function() {
-        this._set_mirror("not connected");
+    onerror: function() {
+        this._set_mirror("error");
     },
     onmessage: function(msg) {
         got_update(msg);
@@ -106,8 +106,8 @@ var SeverEvents = {
                 sever_event_obj.onopen()
             }, false);
 
-            source.addEventListener('close', function (e) {
-                sever_event_obj.onclose()
+            source.addEventListener('error', function (e) {
+                sever_event_obj.onerror()
             }, false);
 
 
