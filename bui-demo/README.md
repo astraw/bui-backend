@@ -33,7 +33,7 @@ To run with other options:
 
     # Use Rust wasm frontend, files served from filesystem for frontend development:
     # The following line requires building the Rust wasm frontend (see below).
-    cargo run --no-default-features --features "serve_files frontend_elm"
+    cargo run --no-default-features --features "serve_files frontend_rust_wasm"
 
     # or
 
