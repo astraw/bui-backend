@@ -34,13 +34,18 @@ decodeInnerServerState =
     (field "is_recording" bool)
     (field "counter" int)
 
+type ReadyState
+  = Connecting
+  | Open
+  | Closed
+
 type alias Model =
     { server_state : ServerState
     , fail_msg : String
     , local_name : String
     , mdl : Material.Model
     , token : String
-    , event_source_connected : Bool
+    , ready_state : ReadyState
     }
 
 init : ( Model, Cmd Msg )
@@ -50,7 +55,7 @@ init =
       , local_name = ""
       , mdl = Material.model
       , token = ""
-      , event_source_connected = False
+      , ready_state = Connecting
       }
     , Cmd.none )
 
@@ -62,7 +67,7 @@ type Msg
   | SetNameLocal String
   | Mdl (Material.Msg Msg)
   | FailedDecode String
-  | EventSourceConnected Bool
+  | NewReadyState ReadyState
   | CallbackDone (Result Http.Error String)
 
 update : Msg -> Model -> (Model, Cmd Msg)
@@ -90,8 +95,8 @@ update msg model =
 
     FailedDecode str -> ({model | fail_msg = str}, Cmd.none)
 
-    EventSourceConnected isConnected ->
-        ({model | event_source_connected = isConnected}, Cmd.none)
+    NewReadyState rs ->
+        ({model | ready_state = rs}, Cmd.none)
 
     CallbackDone result ->
         (model, Cmd.none)
@@ -199,15 +204,29 @@ getServerStateOrFail encoded =
     Ok (ssc) -> NewServerState ssc
     Err msg -> FailedDecode msg
 
+decodeReadyState : Int -> Msg
+decodeReadyState code =
+  case to_ready_state code of
+    Ok(rs) -> NewReadyState rs
+    Err msg -> FailedDecode msg
+
+to_ready_state : Int -> Result String ReadyState
+to_ready_state code =
+  case code of
+    0 -> Ok(Connecting)
+    1 -> Ok(Open)
+    2 -> Ok(Closed)
+    _ -> Err("unknown ReadyState code")
+
 port event_source_data : (String -> msg) -> Sub msg
-port event_source_connected : (Bool -> msg) -> Sub msg
+port ready_state : (Int -> msg) -> Sub msg
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
   Sub.batch
       [ Layout.subs Mdl model.mdl
       , event_source_data getServerStateOrFail
-      , event_source_connected EventSourceConnected
+      , ready_state decodeReadyState
       ]
 
 main : Program Never Model Msg

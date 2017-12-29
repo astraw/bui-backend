@@ -11,11 +11,11 @@ function start() {
         }, false);
 
         source.addEventListener('open', function (e) {
-            app.ports.event_source_connected.send(true);
+            app.ports.ready_state.send(source.readyState);
         }, false);
 
         source.addEventListener('error', function (e) {
-            app.ports.event_source_connected.send(false);
+            app.ports.ready_state.send(source.readyState);
         }, false);
 
     } else {
