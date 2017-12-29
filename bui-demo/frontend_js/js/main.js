@@ -1,28 +1,10 @@
-var sever_event_obj = {
-    onopen: function() {
-        this._set_mirror("connecting");
-    },
-    onerror: function() {
-        this._set_mirror("error");
-    },
-    onmessage: function(msg) {
-        got_update(msg);
-    },
-    _set_mirror: function(text) {
-        var mirror = document.getElementById("mirror");
-        var content = document.createTextNode(text);
-
-        while (mirror.firstChild) {
-            mirror.removeChild(mirror.firstChild);
-        }
-
-        mirror.appendChild(content);
-    }
-}
-
-function got_update(server_store){
+function update_dom(state) {
     var mirror = document.getElementById("mirror");
-    var buf = JSON.stringify(server_store);
+    var buf = JSON.stringify(state.server_store);
+    if (state.ready_state != EventSource.OPEN) {
+        // connection not in OPEN state
+        buf = "connection state: " + state.ready_state;
+    }
     var element = document.createElement("pre");
     var content = document.createTextNode(buf);
 
@@ -34,9 +16,9 @@ function got_update(server_store){
     mirror.appendChild(element);
 
     var toggle = document.getElementById("switch-1");
-    if (toggle.checked !== server_store.is_recording) {
+    if (toggle.checked !== state.server_store.is_recording) {
         var my_switch = document.getElementById("switch-1-label").MaterialSwitch;
-        if (server_store.is_recording) {
+        if (state.server_store.is_recording) {
             my_switch.on();
         } else {
             my_switch.off();
@@ -45,7 +27,7 @@ function got_update(server_store){
 
     {
         var record_progress = document.getElementById("record-progress");
-        if (server_store.is_recording) {
+        if (state.server_store.is_recording) {
             record_progress.classList.add('mdl-progress__indeterminate');
         } else {
             record_progress.classList.remove('mdl-progress__indeterminate');
@@ -53,11 +35,11 @@ function got_update(server_store){
     }
 
     var name_input = document.getElementById("name-input");
-    if (name_input.value !== server_store.name) {
+    if (name_input.value !== state.server_store.name) {
         var my_textfield = document.getElementById("name-input-div");
         var has_focus = Boolean(my_textfield.querySelector(':focus'));
         if (!has_focus) {
-            name_input.value = server_store.name;
+            name_input.value = state.server_store.name;
             my_textfield.MaterialTextfield.checkDirty();
         }
     }
@@ -91,25 +73,29 @@ document.getElementById("name-input").addEventListener('keypress',function(event
     }
 });
 
+var state = {ready_state: 0, server_store: {}};
+
 var SeverEvents = {
-    init: function (sever_event_obj) {
+    init: function () {
 
         if (!!window.EventSource) {
             var source = new EventSource("events");
+            state.ready_state = source.readyState;
 
             source.addEventListener('message', function (e) {
-                var parsed = JSON.parse(e.data);
-                sever_event_obj.onmessage(parsed.bui_backend);
+                state.server_store = JSON.parse(e.data).bui_backend;
+                update_dom(state);
             }, false);
 
             source.addEventListener('open', function (e) {
-                sever_event_obj.onopen()
+                state.ready_state = source.readyState;
+                update_dom(state);
             }, false);
 
             source.addEventListener('error', function (e) {
-                sever_event_obj.onerror()
+                state.ready_state = source.readyState;
+                update_dom(state);
             }, false);
-
 
         } else {
             var root = document.getElementById("root");
@@ -126,7 +112,7 @@ var SeverEvents = {
 };
 
 function start(){
-    SeverEvents.init(sever_event_obj);
+    SeverEvents.init();
 }
 
 start();
