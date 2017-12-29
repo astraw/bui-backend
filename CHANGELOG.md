@@ -4,6 +4,15 @@ All user visible changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/), as described
 for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/text/1105-api-evolution.md)
 
+## [0.3.0] - unreleased
+
+### Changed
+
+* EventSource messages specify "bui_backend" stream and do not encapsulate
+  messages in a JSON message whose outer layer is type `EventStreamMessage`.
+  This is a breaking API change as it requires clients to change their message
+  parsing. The `EventStreamMessage` type has been removed.
+
 ## [0.2.1] - 2017-12-28
 
 ### Added

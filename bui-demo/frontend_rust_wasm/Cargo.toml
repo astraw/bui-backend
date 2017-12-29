@@ -1,6 +1,6 @@
 [package]
 name = "bui-demo-frontend-rust-wasm"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["Andrew Straw <strawman@astraw.com>"]
 
 [dependencies]

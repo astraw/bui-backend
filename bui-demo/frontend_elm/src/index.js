@@ -6,7 +6,7 @@ function start() {
 
         var source = new EventSource("events");
 
-        source.addEventListener('message', function (e) {
+        source.addEventListener("bui_backend", function (e) {
             app.ports.event_source_data.send(e.data);
         }, false);
 

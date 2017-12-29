@@ -82,8 +82,8 @@ var SeverEvents = {
             var source = new EventSource("events");
             state.ready_state = source.readyState;
 
-            source.addEventListener('message', function (e) {
-                state.server_store = JSON.parse(e.data).bui_backend;
+            source.addEventListener('bui_backend', function (e) {
+                state.server_store = JSON.parse(e.data);
                 update_dom(state);
             }, false);
 

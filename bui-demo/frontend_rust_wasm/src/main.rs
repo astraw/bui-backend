@@ -175,9 +175,8 @@ fn main() {
             var update_ready_state = @{update_ready_state};
             var source = new EventSource("events");
 
-            source.addEventListener("message", function (e) {
-                var parsed = JSON.parse(e.data);
-                call_fn(JSON.stringify(parsed.bui_backend));
+            source.addEventListener("bui_backend", function (e) {
+                call_fn(e.data);
             }, false);
 
             source.addEventListener("open", function (e) {

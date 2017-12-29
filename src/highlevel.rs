@@ -40,13 +40,6 @@ pub struct ConnectionEvent {
     pub path: String,
 }
 
-#[derive(Serialize)]
-struct EventStreamMessage<'a, T>
-    where T: 'a + Serialize
-{
-    bui_backend: &'a T,
-}
-
 // ------
 
 /// Maintain state within a BUI application.
@@ -129,9 +122,8 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
         // send current value on initial connect
         let hc: hyper::Chunk = {
             let shared = shared_arc.lock().unwrap();
-            let msg = EventStreamMessage { bui_backend: shared.as_ref() };
-            let buf = serde_json::to_string(&msg).expect("encode");
-            let buf = format!("data: {}\n\n", buf);
+            let buf = serde_json::to_string(&shared.as_ref()).expect("encode");
+            let buf = format!("event: bui_backend\ndata: {}\n\n", buf);
             buf.into()
         };
 
@@ -187,9 +179,8 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
                 for (connection_key, (session_key, tx, path)) in sources.drain() {
 
                     let hc: hyper::Chunk = {
-                        let msg = EventStreamMessage { bui_backend: &new_value };
-                        let buf = serde_json::to_string(&msg).expect("encode");
-                        let buf = format!("data: {}\n\n", buf);
+                        let buf = serde_json::to_string(&new_value).expect("encode");
+                        let buf = format!("event: bui_backend\ndata: {}\n\n", buf);
                         buf.into()
                     };
 
