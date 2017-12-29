@@ -1,3 +1,5 @@
+#![recursion_limit="128"]
+
 #[macro_use]
 extern crate stdweb;
 extern crate serde;
@@ -26,7 +28,19 @@ macro_rules! enclose {
     };
 }
 
-type StateRef = Rc<RefCell<Option<Shared>>>;
+#[derive(Debug)]
+enum ReadyState {
+    Connecting,
+    Open,
+    Closed,
+}
+
+struct MyState {
+    shared: Option<Shared>,
+    ready_state: ReadyState,
+}
+
+type StateRef = Rc<RefCell<MyState>>;
 
 fn send_message(name: &str, args: serde_json::Value) {
     let data = json!({
@@ -50,16 +64,23 @@ fn update_dom(state: &StateRef) {
     }
 
     let state_borrow = &*state.borrow();
-    let text = match state_borrow {
-        &Some(ref server_store) => serde_json::to_string(server_store).unwrap(),
-        &None => "".to_string(),
+    let text = match state_borrow.ready_state {
+        ReadyState::Open => {
+            match state_borrow.shared {
+                Some(ref server_store) => serde_json::to_string(server_store).unwrap(),
+                None => "".to_string(),
+            }
+        },
+        ref state => {
+            format!("Connection state: {:?}", state)
+        }
     };
 
     let element = document().create_element("pre");
     element.append_child(&document().create_text_node(&text));
     mirror.append_child(&element);
 
-    if let &Some(ref server_store) = state_borrow {
+    if let Some(ref server_store) = state_borrow.shared {
         // update the `is_recording` switch and progressbar
         js!{
             var my_switch = document.getElementById("switch-1-label").MaterialSwitch;
@@ -91,14 +112,14 @@ fn update_dom(state: &StateRef) {
 fn main() {
     stdweb::initialize();
 
-    let state = Rc::new(RefCell::new(None));
+    let state = Rc::new(RefCell::new(MyState{shared: None, ready_state: ReadyState::Connecting}));
 
     let on_message = enclose!( (state) move |buf: String| {
         // TODO: convert diretly from stdweb::Value without
         // another serialize/deserialize pass.
         match serde_json::from_str::<Shared>(&buf) {
             Ok(shared) => {
-                *(state.borrow_mut()) = Some(shared);
+                state.borrow_mut().shared = Some(shared);
                 update_dom(&state);
             },
             Err(e) => {
@@ -106,6 +127,16 @@ fn main() {
                 js!(console.error(@{errstr}););
             },
         }
+    });
+
+    let update_ready_state = enclose!( (state) move |ready_state_code: i32| {
+        state.borrow_mut().ready_state = match ready_state_code {
+            0 => ReadyState::Connecting,
+            1 => ReadyState::Open,
+            2 => ReadyState::Closed,
+            code => panic!("unknown readyState code: {:?}", code),
+        };
+        update_dom(&state);
     });
 
     let name_input: InputElement = document()
@@ -141,11 +172,20 @@ fn main() {
     if supports_event_source {
         js! {
             var call_fn = @{on_message};
+            var update_ready_state = @{update_ready_state};
             var source = new EventSource("events");
 
             source.addEventListener("message", function (e) {
                 var parsed = JSON.parse(e.data);
                 call_fn(JSON.stringify(parsed.bui_backend));
+            }, false);
+
+            source.addEventListener("open", function (e) {
+                update_ready_state(source.readyState);
+            }, false);
+
+            source.addEventListener("error", function (e) {
+                update_ready_state(source.readyState);
             }, false);
         }
     } else {
