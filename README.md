@@ -9,9 +9,9 @@ application to serve a [Browser User Interface
 becomes your GUI. The API is based on futures and reactively pushes state to the
 browser. Assets can be served from the filesystem or bundled in the executable.
 The server provides an "escape hatch" to allow server-client communication
-outside of bui-backend. [The demo][bui-demo] includes a Rust web assembly (wasm),
-plain Javascript frontend and an Elm frontend. Together, this lets you ship an
-application written in Rust as a single file with a browser-based UI.
+outside of bui-backend. [The demo][bui-demo] includes a Rust web assembly (wasm)
+frontend, plain Javascript frontend and an Elm frontend. Together, this lets you
+ship an application written in Rust as a single file with a browser-based UI.
 
 The operating principle is that the server runs an HTTP server (based on
 [hyper](https://hyper.rs)) to which the browser connects. The initial page tells
