@@ -4,7 +4,7 @@ All user visible changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/), as described
 for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/text/1105-api-evolution.md)
 
-## [0.3.0] - unreleased
+## [0.3.0] - 2017-12-31
 
 ### Changed
 
@@ -12,6 +12,8 @@ for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/
   messages in a JSON message whose outer layer is type `EventStreamMessage`.
   This is a breaking API change as it requires clients to change their message
   parsing. The `EventStreamMessage` type has been removed.
+* Updated all example frontends (Rust, JS, Elm) to better handle EventSource
+  Web API events and readyState.
 
 ## [0.2.1] - 2017-12-28
 
@@ -57,6 +59,7 @@ for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/
 
 * Initial release
 
+[0.3.0]: https://github.com/astraw/bui-backend/compare/bui-backend/0.2.1...bui-backend/0.3.0
 [0.2.1]: https://github.com/astraw/bui-backend/compare/bui-backend/0.2.0...bui-backend/0.2.1
 [0.2.0]: https://github.com/astraw/bui-backend/compare/bui-backend/0.1.1...bui-backend/0.2.0
 [0.1.1]: https://github.com/astraw/bui-backend/compare/bui-backend/0.1.0...bui-backend/0.1.1
