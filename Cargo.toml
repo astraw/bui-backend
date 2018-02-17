@@ -15,15 +15,15 @@ bui-backend-codegen = {version="0.1", default-features = false, path="codegen"}
 futures = "0.1.11"
 includedir = "0.2.0"
 hyper = "0.11"
-rand = "0.3"
+rand = "0.4"
 raii-change-tracker = "0.1"
 error-chain = "0.11"
-log = "0.3.6"
+log = "0.4"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = {version = "1.0"}
-jsonwebtoken = "3"
-uuid = { version = "0.5", features = ["v4", "serde"] }
+jsonwebtoken = "4"
+uuid = { version = "0.6", features = ["v4", "serde"] }
 
 [features]
 default = ["bundle_files"]

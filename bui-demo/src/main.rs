@@ -159,7 +159,7 @@ fn run() -> Result<()> {
     dotenv::dotenv().ok();
 
     // Setup logging based on level in RUST_LOG environment variable.
-    env_logger::init().unwrap();
+    env_logger::init();
 
     // Parse our command-line arguments.
     let matches = clap::App::new("CARGO_PKG_NAME")
