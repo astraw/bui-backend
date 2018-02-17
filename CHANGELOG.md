@@ -4,6 +4,14 @@ All user visible changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/), as described
 for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/text/1105-api-evolution.md)
 
+## unreleased
+
+### Changed
+
+* Update all outdated dependencies.
+* Updated documentation to specify more exactly how to build demo rust wasm
+  frontend.
+
 ## [0.3.0] - 2017-12-31
 
 ### Changed
