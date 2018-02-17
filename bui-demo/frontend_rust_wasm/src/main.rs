@@ -115,8 +115,7 @@ fn main() {
     let state = Rc::new(RefCell::new(MyState{shared: None, ready_state: ReadyState::Connecting}));
 
     let on_message = enclose!( (state) move |buf: String| {
-        // TODO: convert diretly from stdweb::Value without
-        // another serialize/deserialize pass.
+        // decode the JSON-encoded string
         match serde_json::from_str::<Shared>(&buf) {
             Ok(shared) => {
                 state.borrow_mut().shared = Some(shared);
