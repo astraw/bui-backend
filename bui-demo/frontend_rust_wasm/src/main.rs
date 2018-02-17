@@ -13,10 +13,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use stdweb::unstable::TryInto;
-use stdweb::web::{IHtmlElement, IEventTarget, INode, document};
+use stdweb::web::{IHtmlElement, IEventTarget, INode, HtmlElement, document,
+    INonElementParentNode};
 use stdweb::web::html_element::InputElement;
 
-use stdweb::web::event::{IEvent, IKeyboardEvent, KeypressEvent, BlurEvent, ClickEvent};
+use stdweb::web::event::{IEvent, IKeyboardEvent, KeyPressEvent, BlurEvent, ClickEvent};
 
 // Shamelessly stolen from webplatform's TodoMVC example.
 macro_rules! enclose {
@@ -76,7 +77,7 @@ fn update_dom(state: &StateRef) {
         }
     };
 
-    let element = document().create_element("pre");
+    let element: HtmlElement = document().create_element("pre").unwrap().try_into().unwrap();
     element.append_child(&document().create_text_node(&text));
     mirror.append_child(&element);
 
@@ -143,16 +144,16 @@ fn main() {
         .unwrap()
         .try_into()
         .unwrap();
-    name_input.add_event_listener(enclose!( (name_input) move |event: KeypressEvent| {
+    name_input.add_event_listener(enclose!( (name_input) move |event: KeyPressEvent| {
         if event.key() == "Enter" {
             event.prevent_default();
-            let name: String = name_input.value().try_into().unwrap();
+            let name: String = name_input.raw_value();
             send_message("set_name", serde_json::value::to_value(name).unwrap());
             name_input.blur();
         }
     }));
     name_input.add_event_listener(enclose!( (name_input) move |_: BlurEvent| {
-        let name: String = name_input.value().try_into().unwrap();
+        let name: String = name_input.raw_value();
         send_message("set_name", serde_json::value::to_value(name).unwrap());
     }));
 
