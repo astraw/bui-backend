@@ -58,6 +58,9 @@ To run with other options:
 
 ## Building the Rust wasm frontend
 
+Frontend was tested with `cargo-web 0.6.8`. (Install with
+`cargo +nightly-2018-01-01 install --version 0.6.8 cargo-web`.)
+
     cd frontend_rust_wasm && ./build.sh
 
 [screenshot-img]: bui-demo.png
