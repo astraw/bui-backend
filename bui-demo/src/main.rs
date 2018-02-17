@@ -1,6 +1,5 @@
 #[macro_use]
-extern crate error_chain;
-
+extern crate failure;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
@@ -18,10 +17,11 @@ extern crate futures;
 extern crate tokio_core;
 extern crate bui_demo_data;
 
+use failure::Error;
+
 use std::net::ToSocketAddrs;
 
 use raii_change_tracker::DataTracker;
-use bui_backend::errors::Result;
 use bui_backend::highlevel::{BuiAppInner, create_bui_app_inner};
 
 use futures::{Future, Stream};
@@ -49,7 +49,7 @@ fn is_loopback(addr_any: &std::net::SocketAddr) -> bool {
 }
 
 /// Parse the JWT secret from command-line args or environment variables.
-fn jwt_secret(matches: &clap::ArgMatches, required: bool) -> Result<Vec<u8>> {
+fn jwt_secret(matches: &clap::ArgMatches, required: bool) -> Result<Vec<u8>,Error> {
     match matches
         .value_of("JWT_SECRET")
         .map(|s| s.into())
@@ -59,9 +59,8 @@ fn jwt_secret(matches: &clap::ArgMatches, required: bool) -> Result<Vec<u8>> {
         Some(secret) => Ok(secret),
         None => {
             if required {
-                Err("The --jwt-secret argument must be passed or the JWT_SECRET environment \
-                variable must be set when not using loopback interface."
-                            .into())
+                Err(format_err!("The --jwt-secret argument must be passed or the JWT_SECRET environment \
+                variable must be set when not using loopback interface."))
             } else {
                 Ok(b"jwt_secret".to_vec())
             }
@@ -153,7 +152,7 @@ impl MyApp {
     }
 }
 
-fn run() -> Result<()> {
+fn run() -> Result<(),Error> {
 
     // Set environment variables from `.env` file, if it exists.
     dotenv::dotenv().ok();
@@ -233,4 +232,12 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-quick_main!(run);
+fn main() {
+    match run() {
+        Ok(()) => {},
+        Err(e) => {
+            error!("{}, {}", e.cause(), e.backtrace());
+            std::process::exit(1);
+        }
+    }
+}
