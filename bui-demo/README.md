@@ -25,14 +25,26 @@ are bundled into executable, plain Javascript frontend):
 
 To run with other options:
 
-    # Use Rust wasm frontend, all files bundled into executable:
-    # The following line requires building the Rust wasm frontend (see below).
+    # Use Rust yew frontend, all files bundled into executable:
+    # The following line requires building the Rust yew frontend (see below).
+    cargo run --no-default-features --features "bundle_files frontend_yew"
+
+    # or
+
+    # Use Rust yew frontend, files served from filesystem for frontend development:
+    # The following line requires building the Rust yew frontend (see below).
+    cargo run --no-default-features --features "serve_files frontend_yew"
+
+    # or
+
+    # Use Rust stdweb frontend, all files bundled into executable:
+    # The following line requires building the Rust stdweb frontend (see below).
     cargo run --no-default-features --features "bundle_files frontend_rust_wasm"
 
     # or
 
-    # Use Rust wasm frontend, files served from filesystem for frontend development:
-    # The following line requires building the Rust wasm frontend (see below).
+    # Use Rust stdweb frontend, files served from filesystem for frontend development:
+    # The following line requires building the Rust stdweb frontend (see below).
     cargo run --no-default-features --features "serve_files frontend_rust_wasm"
 
     # or
@@ -56,11 +68,18 @@ To run with other options:
 
     cd frontend_elm && make
 
-## Building the Rust wasm frontend
+## Building the Rust stdweb frontend
 
 Frontend was tested with `cargo-web 0.6.8`. (Install with
 `cargo +nightly-2018-01-01 install --version 0.6.8 cargo-web`.)
 
     cd frontend_rust_wasm && ./build.sh
+
+## Building the Rust yew frontend
+
+Frontend was tested with `cargo-web 0.6.8`. (Install with
+`cargo +nightly-2018-01-01 install --version 0.6.8 cargo-web`.)
+
+    cd frontend_yew && ./build.sh
 
 [screenshot-img]: bui-demo.png
