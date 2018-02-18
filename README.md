@@ -60,7 +60,7 @@ input.
 #### Other crates in this repository
 
 - `codegen` - Buildtime codegen support for bui-backend.
-- `bui-demo` - Example program with Javascript and Elm frontends.
+- `bui-demo` - Example program with Rust, Javascript and Elm frontends.
 
 ## License
 
