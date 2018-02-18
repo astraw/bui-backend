@@ -48,7 +48,7 @@ fn send_message(name: &str, args: serde_json::Value) {
         "args": args
     });
     let buf = serde_json::to_string(&data).unwrap();
-    js!{
+    js!{ @(no_return)
         var httpRequest = new XMLHttpRequest();
         httpRequest.open("POST", "callback");
         httpRequest.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
@@ -82,7 +82,7 @@ fn update_dom(state: &StateRef) {
 
     if let Some(ref server_store) = state_borrow.shared {
         // update the `is_recording` switch and progressbar
-        js!{
+        js!{ @(no_return)
             var my_switch = document.getElementById("switch-1-label").MaterialSwitch;
             var record_progress = document.getElementById("record-progress");
             if (@{server_store.is_recording}) {
@@ -96,7 +96,7 @@ fn update_dom(state: &StateRef) {
         }
 
         // update the `name` input field if it does not have focus
-        js!{
+        js!{ @(no_return)
             var my_textfield = document.getElementById("name-input-div");
             var has_focus = Boolean(my_textfield.querySelector(":focus"));
             if (!has_focus) {
@@ -123,7 +123,7 @@ fn main() {
             },
             Err(e) => {
                 let errstr = format!("Error parsing Shared: {:?}", e);
-                js!(console.error(@{errstr}););
+                js!( @(no_return) console.error(@{errstr}););
             },
         }
     });
@@ -169,7 +169,7 @@ fn main() {
     let supports_event_source: bool = js!(return !!window.EventSource).try_into().unwrap();
 
     if supports_event_source {
-        js! {
+        js! { @(no_return)
             var call_fn = @{on_message};
             var update_ready_state = @{update_ready_state};
             var source = new EventSource("events");
@@ -187,7 +187,7 @@ fn main() {
             }, false);
         }
     } else {
-        js!{
+        js!{ @(no_return)
             var root = document.getElementById("root");
             root.innerHTML = ("<div>"+
                 "<h4>EventSource not supported in this browser</h4>"+
