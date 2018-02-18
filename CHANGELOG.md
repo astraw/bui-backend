@@ -8,6 +8,7 @@ for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/
 
 ### Changed
 
+* ConnectionKeyType is now u32 (not usize).
 * Remove dependency on error_chain in main crate and demo uses failure crate.
 * Update all outdated dependencies.
 * Updated documentation to specify more exactly how to build demo rust wasm

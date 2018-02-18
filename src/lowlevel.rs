@@ -80,8 +80,8 @@ pub struct NewEventStreamConnection {
 
 type NewConnectionSender = mpsc::Sender<NewEventStreamConnection>;
 
-/// Alias for `usize` to identify each connected event stream listener (one per client tab).
-pub type ConnectionKeyType = usize;
+/// Alias for `u32` to identify each connected event stream listener (one per client tab).
+pub type ConnectionKeyType = u32;
 
 /// Handle HTTP requests and coordinate responses to data updates.
 ///
