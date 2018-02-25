@@ -3,7 +3,7 @@
 //! The API in this module is likely to change as ergonomics get better.
 use lowlevel::{BuiService, ConnectionKeyType, SessionKeyType, EventChunkSender,
                CallbackDataAndSession, Config, launcher, NewBuiService};
-use {std, hyper, serde_json, futures};
+use {std, hyper, serde, serde_json, futures};
 
 use hyper::server::Http;
 
@@ -122,9 +122,7 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
         // send current value on initial connect
         let hc: hyper::Chunk = {
             let shared = shared_arc.lock().unwrap();
-            let buf = serde_json::to_string(&shared.as_ref()).expect("encode");
-            let buf = format!("event: bui_backend\ndata: {}\n\n", buf);
-            buf.into()
+            create_event_source_msg(&shared.as_ref()).into()
         };
 
         let nct = new_conn_tx2.clone();
@@ -176,15 +174,13 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
                 let mut sources = txers.lock().unwrap();
                 let mut restore = vec![];
 
+                let event_source_msg = create_event_source_msg(&new_value);
+
                 for (connection_key, (session_key, tx, path)) in sources.drain() {
 
-                    let hc: hyper::Chunk = {
-                        let buf = serde_json::to_string(&new_value).expect("encode");
-                        let buf = format!("event: bui_backend\ndata: {}\n\n", buf);
-                        buf.into()
-                    };
+                    let chunk = event_source_msg.clone().into();
 
-                    match tx.send(Ok(hc)).wait() {
+                    match tx.send(Ok(chunk)).wait() {
                         Ok(tx) => {
                             restore.push((connection_key, (session_key, tx, path)));
                         }
@@ -224,4 +220,9 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
     inner.i_hyper_server.handle().spawn(change_listener);
 
     (new_conn_rx, inner)
+}
+
+fn create_event_source_msg<T: serde::Serialize>(value: &T) -> String {
+    let buf = serde_json::to_string(&value).expect("encode");
+    format!("event: bui_backend\ndata: {}\n\n", buf)
 }
