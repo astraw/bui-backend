@@ -31,14 +31,18 @@ JSON.
    allow taking control of communication using pre-established event stream.
    (This is an "escape hatch" to break out of the bui-backend abstractions as
    required by some use cases.)
- - Demo frontends written in Rust web assembly (wasm), Javascript and Elm. (Use
-   [`bui-demo`][bui-demo] with `frontend_rust_wasm`, `frontend_js`,
-   or `frontend_elm` feature.)
  - Written in async style using
    [futures-rs](https://github.com/alexcrichton/futures-rs).
  - Uses [Serde JSON](https://crates.io/crates/serde_json).
  - Compile-time choice between bundling served files into executable (with
    `bundle_files` feature) or reading files from disk (`serve_files`).
+
+#### Demo
+
+ A demo is available with frontends written in Rust web assembly (plain wasm or
+ yew framework), Javascript and Elm. (Use [`bui-demo`][bui-demo] with
+ `frontend_rust_wasm`, `frontend_yew`, `frontend_js`, or `frontend_elm`
+ feature.)
 
 #### Potential improvements
 
