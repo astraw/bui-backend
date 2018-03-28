@@ -8,10 +8,12 @@ for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/
 
 ### Changed
 
-* Add demo frontend based on the yew framework.
-* Upgrade wasm frontend demo to `stdweb` 0.4.
+* Add `frontend_yew` demo based on the yew framework.
+* Rename existing rust wasm frontend to `frontend_stdweb`.
+* Upgrade `frontend_stdweb` demo to `stdweb` 0.4.
 * ConnectionKeyType is now u32 (not usize).
-* Remove dependency on error_chain in main crate and demo uses failure crate.
+* Remove dependency on `error_chain` in main crate and demo uses
+  [`failure`](https://crates.io/crates/failure) crate.
 * Update all outdated dependencies.
 * Updated documentation to specify more exactly how to build demo rust wasm
   frontend.
