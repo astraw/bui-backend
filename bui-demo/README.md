@@ -70,15 +70,15 @@ To run with other options:
 
 ## Building the Rust stdweb frontend
 
-Frontend was tested with `cargo-web 0.6.8`. (Install with
-`cargo +nightly-2018-01-01 install --version 0.6.8 cargo-web`.)
+Frontend was tested with `cargo-web 0.6.9`. (Install with
+`cargo +nightly-2018-03-25 install --version 0.6.9 cargo-web`.)
 
     cd frontend_stdweb && ./build.sh
 
 ## Building the Rust yew frontend
 
 Frontend was tested with `cargo-web 0.6.8`. (Install with
-`cargo +nightly-2018-01-01 install --version 0.6.8 cargo-web`.)
+`cargo +nightly-2018-03-25 install --version 0.6.9 cargo-web`.)
 
     cd frontend_yew && ./build.sh
 
