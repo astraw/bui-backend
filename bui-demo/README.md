@@ -39,13 +39,13 @@ To run with other options:
 
     # Use Rust stdweb frontend, all files bundled into executable:
     # The following line requires building the Rust stdweb frontend (see below).
-    cargo run --no-default-features --features "bundle_files frontend_rust_wasm"
+    cargo run --no-default-features --features "bundle_files frontend_stdweb"
 
     # or
 
     # Use Rust stdweb frontend, files served from filesystem for frontend development:
     # The following line requires building the Rust stdweb frontend (see below).
-    cargo run --no-default-features --features "serve_files frontend_rust_wasm"
+    cargo run --no-default-features --features "serve_files frontend_stdweb"
 
     # or
 
@@ -73,7 +73,7 @@ To run with other options:
 Frontend was tested with `cargo-web 0.6.8`. (Install with
 `cargo +nightly-2018-01-01 install --version 0.6.8 cargo-web`.)
 
-    cd frontend_rust_wasm && ./build.sh
+    cd frontend_stdweb && ./build.sh
 
 ## Building the Rust yew frontend
 

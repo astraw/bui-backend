@@ -39,6 +39,6 @@ frontend_js = []
 # Use the Elm frontend
 frontend_elm = []
 # Use the Rust stdweb frontend
-frontend_rust_wasm = []
+frontend_stdweb = []
 # Use the Rust yew frontend
 frontend_yew = []

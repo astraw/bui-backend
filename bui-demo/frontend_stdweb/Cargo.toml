@@ -1,5 +1,5 @@
 [package]
-name = "bui-demo-frontend-rust-wasm"
+name = "bui-demo-frontend-stdweb"
 version = "0.3.0"
 authors = ["Andrew Straw <strawman@astraw.com>"]
 

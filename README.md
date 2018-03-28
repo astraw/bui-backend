@@ -41,7 +41,7 @@ JSON.
 
  A demo is available with frontends written in Rust web assembly (plain wasm or
  yew framework), Javascript and Elm. (Use [`bui-demo`][bui-demo] with
- `frontend_rust_wasm`, `frontend_yew`, `frontend_js`, or `frontend_elm`
+ `frontend_stdweb`, `frontend_yew`, `frontend_js`, or `frontend_elm`
  feature.)
 
 #### Potential improvements

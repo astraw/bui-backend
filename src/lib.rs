@@ -28,7 +28,7 @@
 //!    stream. (This is an "escape hatch" to break out of the bui-backend
 //!    abstractions as required by some use cases.)
 //!  - Demo frontends written in Rust web assembly (wasm), Javascript and Elm. (Use
-//!    [`bui-demo`][bui-demo] with `frontend_rust_wasm`, `frontend_js`,
+//!    [`bui-demo`][bui-demo] with `frontend_stdweb`, `frontend_js`,
 //!    or `frontend_elm` feature.)
 //!  - Written in async style using
 //!    [futures-rs](https://github.com/alexcrichton/futures-rs).
