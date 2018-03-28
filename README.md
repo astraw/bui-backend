@@ -32,7 +32,7 @@ JSON.
    (This is an "escape hatch" to break out of the bui-backend abstractions as
    required by some use cases.)
  - Written in async style using
-   [futures-rs](https://github.com/alexcrichton/futures-rs).
+   [futures](https://github.com/rust-lang-nursery/futures-rs).
  - Uses [Serde JSON](https://crates.io/crates/serde_json).
  - Compile-time choice between bundling served files into executable (with
    `bundle_files` feature) or reading files from disk (`serve_files`).
