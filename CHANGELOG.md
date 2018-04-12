@@ -4,6 +4,15 @@ All user visible changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/), as described
 for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/text/1105-api-evolution.md)
 
+## unreleased
+
+### Changed
+
+* change api in `highlevel::create_bui_app_inner()` to accept
+  `Arc<Mutex<DataTracker<T>>>`. This allows creating the shared
+  data store in a different thread than the thread running the
+  BUI backend.
+
 ## [0.4.1] - 2018-04-03
 
 ### Fixed

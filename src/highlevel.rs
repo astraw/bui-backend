@@ -85,7 +85,7 @@ impl<T> BuiAppInner<T>
 
 /// Factory function to create a new BUI application.
 pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
-                               shared_store: DataTracker<T>,
+                               shared_arc: Arc<Mutex<DataTracker<T>>>,
                                addr: &SocketAddr,
                                config: Config,
                                chan_size: usize,
@@ -101,7 +101,7 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
     let hyper_server = Http::new().bind(&addr, mbc).unwrap();
 
     let inner = BuiAppInner {
-        i_shared_arc: Arc::new(Mutex::new(shared_store)),
+        i_shared_arc: shared_arc,
         i_txers: Arc::new(Mutex::new(HashMap::new())),
         i_bui_server: bui_server,
         i_hyper_server: hyper_server,

@@ -20,6 +20,7 @@ extern crate bui_demo_data;
 use failure::Error;
 
 use std::net::ToSocketAddrs;
+use std::sync::{Arc, Mutex};
 
 use raii_change_tracker::DataTracker;
 use bui_backend::highlevel::{BuiAppInner, create_bui_app_inner};
@@ -73,11 +74,11 @@ impl MyApp {
     fn new(secret: &[u8], addr: &std::net::SocketAddr, config: Config) -> Self {
 
         // Create our shared state.
-        let shared_store = DataTracker::new(Shared {
+        let shared_store = Arc::new(Mutex::new(DataTracker::new(Shared {
                                                 is_recording: false,
                                                 counter: 0,
                                                 name: "".into(),
-                                            });
+                                            })));
 
         // Create `inner`, which takes care of the browser communication details for us.
         let chan_size = 10;
