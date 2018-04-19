@@ -16,6 +16,8 @@ use futures::{Future, Sink, Stream};
 use futures::sync::mpsc;
 use serde::Serialize;
 
+use ::Error;
+
 // ------
 
 /// The type of possible connect event, either connect or disconnect.
@@ -90,7 +92,7 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
                                config: Config,
                                chan_size: usize,
                                events_prefix: &str)
-                               -> (mpsc::Receiver<ConnectionEvent>, BuiAppInner<T>)
+                               -> Result<(mpsc::Receiver<ConnectionEvent>, BuiAppInner<T>), Error>
     where T: Clone + PartialEq + Serialize + 'static
 {
     let (rx_conn, bui_server) = launcher(config, &jwt_secret, chan_size, events_prefix);
@@ -98,7 +100,7 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
     let b2 = bui_server.clone();
 
     let mbc = NewBuiService::new(Box::new(move || Ok(b2.clone())));
-    let hyper_server = Http::new().bind(&addr, mbc).unwrap();
+    let hyper_server = Http::new().bind(&addr, mbc)?;
 
     let inner = BuiAppInner {
         i_shared_arc: shared_arc,
@@ -219,7 +221,7 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
     };
     inner.i_hyper_server.handle().spawn(change_listener);
 
-    (new_conn_rx, inner)
+    Ok((new_conn_rx, inner))
 }
 
 fn create_event_source_msg<T: serde::Serialize>(value: &T) -> String {

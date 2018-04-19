@@ -60,6 +60,12 @@ extern crate futures;
 extern crate hyper;
 extern crate jsonwebtoken;
 extern crate uuid;
+extern crate failure;
+#[macro_use]
+extern crate failure_derive;
+
+mod errors;
+pub use errors::Error;
 
 pub mod lowlevel;
 pub mod highlevel;

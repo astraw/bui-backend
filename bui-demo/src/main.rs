@@ -71,7 +71,7 @@ fn jwt_secret(matches: &clap::ArgMatches, required: bool) -> Result<Vec<u8>,Erro
 
 impl MyApp {
     /// Create our app
-    fn new(secret: &[u8], addr: &std::net::SocketAddr, config: Config) -> Self {
+    fn new(secret: &[u8], addr: &std::net::SocketAddr, config: Config) -> Result<Self, Error> {
 
         // Create our shared state.
         let shared_store = Arc::new(Mutex::new(DataTracker::new(Shared {
@@ -83,7 +83,7 @@ impl MyApp {
         // Create `inner`, which takes care of the browser communication details for us.
         let chan_size = 10;
         let (_, mut inner) =
-            create_bui_app_inner(&secret, shared_store, &addr, config, chan_size, "/events");
+            create_bui_app_inner(&secret, shared_store, &addr, config, chan_size, "/events")?;
 
         // Make a clone of our shared state Arc which will be moved into our callback handler.
         let tracker_arc2 = inner.shared_arc().clone();
@@ -139,7 +139,7 @@ impl MyApp {
         inner.hyper_server().handle().spawn(callback_rx_future);
 
         // Return our app.
-        MyApp { inner: inner }
+        Ok(MyApp { inner: inner })
     }
 
     /// Get a handle to our event loop.
@@ -196,7 +196,7 @@ fn run() -> Result<(),Error> {
     let config = get_default_config();
 
     // Create our app.
-    let my_app = MyApp::new(&secret, &http_server_addr, config);
+    let my_app = MyApp::new(&secret, &http_server_addr, config)?;
 
     // Clone our shared data to move it into a closure later.
     let tracker_arc = my_app.inner.shared_arc().clone();
