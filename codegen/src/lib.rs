@@ -62,8 +62,8 @@ fn create_codegen_file<P, Q>(_: P, codegen_fname: Q) -> Result<(), Box<Error>>
 {
     // Intentionally trigger a compile time error to force a feature
     // flag to be used.
-    error = "You are attempting to compile without a required feature flag \
-    being used. You must use one of either `bundle_files` or `serve_files`";
+    compile_error!("You are attempting to compile without a required feature flag \
+    being used. You must use one of either `bundle_files` or `serve_files`");
 }
 
 /// Update the codegen file (`codegen_fname`) to include
