@@ -6,6 +6,11 @@ for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/
 
 ## unreleased
 
+### Changed
+
+* use `tokio_core::reactor::Handle` passed in from caller, allowing
+  the caller to maintain the `tokio_core::reactor::Core`.
+
 ### Added
 
 * Make compile-time error more readable when compiling codegen

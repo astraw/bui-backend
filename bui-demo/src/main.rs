@@ -18,6 +18,7 @@ extern crate tokio_core;
 extern crate bui_demo_data;
 
 use failure::Error;
+use tokio_core::reactor::Handle;
 
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, Mutex};
@@ -34,6 +35,7 @@ include!(concat!(env!("OUT_DIR"), "/public.rs")); // Despite slash, this does wo
 /// The structure that holds our app data
 struct MyApp {
     inner: BuiAppInner<Shared>,
+    handle: Handle,
 }
 
 fn address( matches: &clap::ArgMatches ) -> std::net::SocketAddr {
@@ -71,7 +73,7 @@ fn jwt_secret(matches: &clap::ArgMatches, required: bool) -> Result<Vec<u8>,Erro
 
 impl MyApp {
     /// Create our app
-    fn new(secret: &[u8], addr: &std::net::SocketAddr, config: Config) -> Result<Self, Error> {
+    fn new(secret: &[u8], addr: &std::net::SocketAddr, config: Config, handle: Handle) -> Result<Self, Error> {
 
         // Create our shared state.
         let shared_store = Arc::new(Mutex::new(DataTracker::new(Shared {
@@ -82,8 +84,8 @@ impl MyApp {
 
         // Create `inner`, which takes care of the browser communication details for us.
         let chan_size = 10;
-        let (_, mut inner) =
-            create_bui_app_inner(&secret, shared_store, &addr, config, chan_size, "/events")?;
+        let (_, mut inner) = create_bui_app_inner(handle.clone(), &secret,
+            shared_store, &addr, config, chan_size, "/events")?;
 
         // Make a clone of our shared state Arc which will be moved into our callback handler.
         let tracker_arc2 = inner.shared_arc().clone();
@@ -136,21 +138,17 @@ impl MyApp {
             });
 
         // Add our future into the event loop created by hyper.
-        inner.hyper_server().handle().spawn(callback_rx_future);
+        inner.handle().spawn(callback_rx_future);
 
         // Return our app.
-        Ok(MyApp { inner: inner })
+        Ok(MyApp { inner: inner, handle: handle })
     }
 
     /// Get a handle to our event loop.
     fn handle(&self) -> tokio_core::reactor::Handle {
-        self.inner.hyper_server().handle()
+        self.handle.clone()
     }
 
-    /// Consume self and run forever.
-    fn run(self) -> std::result::Result<(), hyper::Error> {
-        self.inner.into_hyper_server().run()
-    }
 }
 
 fn run() -> Result<(),Error> {
@@ -195,8 +193,12 @@ fn run() -> Result<(),Error> {
     // and is pulled in here by the `include!` macro above.
     let config = get_default_config();
 
+    let mut reactor = tokio_core::reactor::Core::new()?;
+
+    let handle = reactor.handle();
+
     // Create our app.
-    let my_app = MyApp::new(&secret, &http_server_addr, config)?;
+    let my_app = MyApp::new(&secret, &http_server_addr, config, handle)?;
 
     // Clone our shared data to move it into a closure later.
     let tracker_arc = my_app.inner.shared_arc().clone();
@@ -229,7 +231,7 @@ fn run() -> Result<(),Error> {
     println!("Listening on http://{}", http_server_addr);
 
     // Run our app.
-    my_app.run()?;
+    reactor.run(futures::empty::<(),hyper::Error>())?;
     Ok(())
 }
 

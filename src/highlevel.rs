@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use futures::{Future, Sink, Stream};
 use futures::sync::mpsc;
+use tokio_core::reactor::Handle;
 use serde::Serialize;
 
 use ::Error;
@@ -51,7 +52,7 @@ pub struct BuiAppInner<T>
     i_shared_arc: Arc<Mutex<DataTracker<T>>>,
     i_txers: Arc<Mutex<HashMap<ConnectionKeyType, (SessionKeyType, EventChunkSender, String)>>>,
     i_bui_server: BuiService,
-    i_hyper_server: hyper::Server<NewBuiService, hyper::Body>,
+    i_handle: Handle,
 }
 
 impl<T> BuiAppInner<T>
@@ -67,14 +68,9 @@ impl<T> BuiAppInner<T>
         &self.i_bui_server
     }
 
-    /// Get reference to the underlying hyper server.
-    pub fn hyper_server(&self) -> &hyper::Server<NewBuiService, hyper::Body> {
-        &self.i_hyper_server
-    }
-
-    /// Drop self and return only the underlying hyper server.
-    pub fn into_hyper_server(self) -> hyper::Server<NewBuiService, hyper::Body> {
-        self.i_hyper_server
+    /// Get reference to a handle to the reactor
+    pub fn handle(&self) -> &Handle {
+        &self.i_handle
     }
 
     /// Get a stream of callback events.
@@ -86,7 +82,8 @@ impl<T> BuiAppInner<T>
 }
 
 /// Factory function to create a new BUI application.
-pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
+pub fn create_bui_app_inner<T>(handle: Handle,
+                               jwt_secret: &[u8],
                                shared_arc: Arc<Mutex<DataTracker<T>>>,
                                addr: &SocketAddr,
                                config: Config,
@@ -99,14 +96,22 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
 
     let b2 = bui_server.clone();
 
-    let mbc = NewBuiService::new(Box::new(move || Ok(b2.clone())));
-    let hyper_server = Http::new().bind(&addr, mbc)?;
+    let new_service = NewBuiService::new(Box::new(move || Ok(b2.clone())));
+    let serve = Http::new().serve_addr_handle(&addr, &handle, new_service)?;
+    let handle2 = handle.clone();
+    let handle3 = handle.clone();
+
+    let h2 = handle.clone();
+    handle.spawn(serve.for_each(move |conn| {
+        h2.spawn(conn.map(|_| ()).map_err(|err| println!("serve error: {:?}", err)));
+        Ok(())
+    }).map_err(|_| ()));
 
     let inner = BuiAppInner {
         i_shared_arc: shared_arc,
         i_txers: Arc::new(Mutex::new(HashMap::new())),
         i_bui_server: bui_server,
-        i_hyper_server: hyper_server,
+        i_handle: handle,
     };
 
     // --- handle_connections future
@@ -157,7 +162,7 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
             }
         }
     });
-    inner.i_hyper_server.handle().spawn(handle_connections);
+    handle3.spawn(handle_connections);
 
 
     // --- push changes
@@ -219,7 +224,7 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
         });
         rx
     };
-    inner.i_hyper_server.handle().spawn(change_listener);
+    handle2.spawn(change_listener);
 
     Ok((new_conn_rx, inner))
 }
