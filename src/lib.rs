@@ -44,7 +44,7 @@
 //! when handling malicious input.
 //!
 //! [bui-demo]: https://github.com/astraw/bui-backend/tree/master/bui-demo
-#![deny(missing_docs)]
+// #![deny(missing_docs)]
 
 #[macro_use]
 extern crate serde_derive;
@@ -57,7 +57,7 @@ extern crate includedir;
 extern crate serde;
 extern crate serde_json;
 extern crate futures;
-extern crate tokio_core;
+extern crate tokio_executor;
 extern crate hyper;
 extern crate jsonwebtoken;
 extern crate uuid;

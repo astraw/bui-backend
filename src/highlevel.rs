@@ -2,10 +2,8 @@
 //!
 //! The API in this module is likely to change as ergonomics get better.
 use lowlevel::{BuiService, ConnectionKeyType, SessionKeyType, EventChunkSender,
-               CallbackDataAndSession, Config, launcher, NewBuiService};
+               CallbackDataAndSession, Config, launcher};
 use {std, hyper, serde, serde_json, futures};
-
-use hyper::server::Http;
 
 use raii_change_tracker::DataTracker;
 
@@ -14,7 +12,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use futures::{Future, Sink, Stream};
 use futures::sync::mpsc;
-use tokio_core::reactor::Handle;
+use tokio_executor::Executor;
 use serde::Serialize;
 
 use ::Error;
@@ -47,16 +45,15 @@ pub struct ConnectionEvent {
 
 /// Maintain state within a BUI application.
 pub struct BuiAppInner<T>
-    where T: Clone + PartialEq + Serialize
+    where T: Clone + PartialEq + Serialize + Send
 {
     i_shared_arc: Arc<Mutex<DataTracker<T>>>,
     i_txers: Arc<Mutex<HashMap<ConnectionKeyType, (SessionKeyType, EventChunkSender, String)>>>,
     i_bui_server: BuiService,
-    i_handle: Handle,
 }
 
 impl<T> BuiAppInner<T>
-    where T: Clone + PartialEq + Serialize + 'static
+    where T: Clone + PartialEq + Serialize + Send + 'static
 {
     /// Get reference counted reference to the underlying data store.
     pub fn shared_arc(&self) -> &Arc<Mutex<DataTracker<T>>> {
@@ -68,11 +65,6 @@ impl<T> BuiAppInner<T>
         &self.i_bui_server
     }
 
-    /// Get reference to a handle to the reactor
-    pub fn handle(&self) -> &Handle {
-        &self.i_handle
-    }
-
     /// Get a stream of callback events.
     pub fn add_callback_listener(&mut self,
                                  channel_size: usize)
@@ -82,7 +74,7 @@ impl<T> BuiAppInner<T>
 }
 
 /// Factory function to create a new BUI application.
-pub fn create_bui_app_inner<T>(handle: Handle,
+pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
                                jwt_secret: &[u8],
                                shared_arc: Arc<Mutex<DataTracker<T>>>,
                                addr: &SocketAddr,
@@ -90,28 +82,25 @@ pub fn create_bui_app_inner<T>(handle: Handle,
                                chan_size: usize,
                                events_prefix: &str)
                                -> Result<(mpsc::Receiver<ConnectionEvent>, BuiAppInner<T>), Error>
-    where T: Clone + PartialEq + Serialize + 'static
+    where T: Clone + PartialEq + Serialize + 'static + Send,
 {
     let (rx_conn, bui_server) = launcher(config, &jwt_secret, chan_size, events_prefix);
 
     let b2 = bui_server.clone();
 
-    let new_service = NewBuiService::new(Box::new(move || Ok(b2.clone())));
-    let serve = Http::new().serve_addr_handle(&addr, &handle, new_service)?;
-    let handle2 = handle.clone();
-    let handle3 = handle.clone();
+    let new_service = move || ->  Result<_,hyper::Error> { Ok(b2.clone()) };
 
-    let h2 = handle.clone();
-    handle.spawn(serve.for_each(move |conn| {
-        h2.spawn(conn.map(|_| ()).map_err(|err| println!("serve error: {:?}", err)));
-        Ok(())
-    }).map_err(|_| ()));
+    let server = hyper::Server::bind(&addr)
+        .serve(new_service);
+
+    my_executor.spawn(Box::new(server.map_err(|e| {
+        eprintln!("server error: {}", e);
+    })))?;
 
     let inner = BuiAppInner {
         i_shared_arc: shared_arc,
         i_txers: Arc::new(Mutex::new(HashMap::new())),
         i_bui_server: bui_server,
-        i_handle: handle,
     };
 
     // --- handle_connections future
@@ -150,7 +139,7 @@ pub fn create_bui_app_inner<T>(handle: Handle,
             }
         };
 
-        match chunk_sender.send(Ok(hc)).wait() {
+        match chunk_sender.send(hc).wait() {
             Ok(chunk_sender) => {
                 let mut txer_guard = txers2.lock().unwrap();
                 txer_guard.insert(connection_key, (ckey, chunk_sender, conn_info.path));
@@ -162,8 +151,7 @@ pub fn create_bui_app_inner<T>(handle: Handle,
             }
         }
     });
-    handle3.spawn(handle_connections);
-
+    my_executor.spawn(Box::new(handle_connections))?;
 
     // --- push changes
 
@@ -187,7 +175,7 @@ pub fn create_bui_app_inner<T>(handle: Handle,
 
                     let chunk = event_source_msg.clone().into();
 
-                    match tx.send(Ok(chunk)).wait() {
+                    match tx.send(chunk).wait() {
                         Ok(tx) => {
                             restore.push((connection_key, (session_key, tx, path)));
                         }
@@ -224,7 +212,8 @@ pub fn create_bui_app_inner<T>(handle: Handle,
         });
         rx
     };
-    handle2.spawn(change_listener);
+    let send_fut: Box<Future<Item=_,Error=_>+Send> = Box::new(change_listener);
+    my_executor.spawn(send_fut)?;
 
     Ok((new_conn_rx, inner))
 }

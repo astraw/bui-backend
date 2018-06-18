@@ -17,10 +17,11 @@ serde = "1.0"
 serde_json = "1.0"
 clap = "2.20.0"
 failure = "0.1.1"
-hyper = "0.11"
+hyper = "0.12"
 dotenv = "0.10"
 futures = "0.1"
-tokio-core = "0.1"
+tokio = "0.1"
+tokio-timer = "0.2"
 bui-demo-data = {path="bui-demo-data"}
 
 [build-dependencies]

@@ -4,9 +4,9 @@ use {serde_json, std, futures, jsonwebtoken};
 use includedir;
 use hyper;
 
-use hyper::{Get, Post, StatusCode, mime};
-use hyper::server::{Request, Response};
-use hyper::header::{Accept, ContentLength};
+use hyper::{Method, StatusCode};
+use hyper::{Request, Response};
+use hyper::header::ACCEPT;
 use uuid::Uuid;
 
 use futures::{Future, Stream, Sink};
@@ -64,7 +64,8 @@ pub struct Config {
 }
 
 /// Wrapper around `hyper::Chunk` to enable sending data to clients.
-pub type EventChunkSender = mpsc::Sender<std::result::Result<hyper::Chunk, hyper::Error>>;
+pub type EventChunkSender = mpsc::Sender<hyper::Chunk>;
+// pub type EventChunkSender = mpsc::Sender<std::result::Result<hyper::Chunk, hyper::Error>>;
 
 /// Wrap the sender to each connected event stream listener.
 pub struct NewEventStreamConnection {
@@ -164,48 +165,112 @@ impl BuiService {
         }
         rx
     }
+
+    fn handle_callback(&self,
+        req: Request<hyper::Body>,
+        session_key: SessionKeyType,
+        )
+        -> Box<Future<Item=Response<hyper::Body>, Error=hyper::Error> + Send>
+    {
+
+        let cbsenders = self.callback_senders.clone();
+
+        // fold all chunks into one Vec<u8>
+        let all_chunks_future = req.into_body()
+            .fold(vec![], |mut buf, chunk| {
+                    buf.extend_from_slice(&*chunk);
+                futures::future::ok::<_, hyper::Error>(buf)
+            });
+
+        // parse data
+        let fut = all_chunks_future
+            .and_then(move |data: Vec<u8>| {
+                match serde_json::from_slice::<WireCallbackData>(&data) {
+                    Ok(data) => {
+                        {
+                            // valid data, parse it
+                            let mut cb_tx_vec = cbsenders.lock().unwrap();
+                            let mut restore_tx = Vec::new();
+
+                            let cmd_name = data.name.clone();
+                            let args = CallbackDataAndSession {
+                                name: data.name,
+                                args: data.args,
+                                session_key: session_key,
+                            };
+                            for tx in cb_tx_vec.drain(..) {
+                                // TODO can we somehow do this without waiting?
+                                match tx.send(args.clone()).wait() {
+                                    Ok(t) => restore_tx.push(t),
+                                    Err(e) => {
+                                        // listener failed
+                                        warn!("when sending callback {:?}, error: {:?}",
+                                                cmd_name,
+                                                e);
+                                    }
+                                };
+                            }
+
+                            for tx in restore_tx.into_iter() {
+                                cb_tx_vec.push(tx);
+                            }
+
+                        }
+                        let resp = Response::builder()
+                            .body(hyper::Body::empty()).expect("response");
+                        futures::future::ok(resp)
+                    }
+                    Err(e) => {
+                        error!("Failed parsing JSON to WireCallbackData: {:?}", e);
+                        let resp = Response::builder()
+                            .status(StatusCode::BAD_REQUEST)
+                            .body(hyper::Body::empty()).expect("response");
+                        futures::future::ok(resp)
+                    }
+                }
+            });
+        Box::new(fut)
+    }
+
 }
 
-fn into_bytes(body: hyper::Body) -> Box<Future<Item = Vec<u8>, Error = hyper::Error>> {
-    Box::new(body.fold(vec![], |mut buf, chunk| {
-        buf.extend_from_slice(&*chunk);
-        futures::future::ok::<_, hyper::Error>(buf)
-    }))
-}
-
-fn get_client_key(headers: &hyper::Headers,
+fn get_client_key(map: &hyper::HeaderMap<hyper::header::HeaderValue>,
                   cookie_name: &str,
                   jwt_secret: &[u8])
                   -> Option<SessionKeyType> {
-    if let Some(ref cookie) = headers.get::<hyper::header::Cookie>() {
-        match cookie.get(&cookie_name) {
-            Some(k) => {
-                match jsonwebtoken::decode::<JwtClaims>(&k,
-                                                        jwt_secret,
-                                                        &jsonwebtoken::Validation::default())
-                              .map(|token| token.claims.key) {
-                    Ok(k) => Some(k),
-                    Err(e) => {
-                        warn!("client passed token {:?}, resulting in error: {:?}", k, e);
-                        None
+    let mut result = None;
+    let valid_start = format!("{}=", cookie_name);
+    for cookie in map.get_all(hyper::header::COOKIE).iter() {
+        match cookie.to_str() {
+            Ok(k) => {
+                if k.starts_with(&valid_start) {
+                    let encoded = &k[valid_start.len()..];
+                    match jsonwebtoken::decode::<JwtClaims>(&encoded,
+                                                            jwt_secret,
+                                                            &jsonwebtoken::Validation::default())
+                                    .map(|token| token.claims.key) {
+                        Ok(k) => {result = Some(k)},
+                        Err(e) => {
+                            warn!("client passed token {:?}, resulting in error: {:?}", k, e);
+                        }
                     }
                 }
             }
-            None => None,
+            Err(e) => {
+                warn!("cookie not converted to str: {:?}", e);
+            }
         }
-    } else {
-        None
     }
+    result
 }
 
-impl hyper::server::Service for BuiService {
-    type Request = Request;
-    type Response = Response;
+impl hyper::service::Service for BuiService {
+    type ReqBody = hyper::Body;
+    type ResBody = hyper::Body;
     type Error = hyper::Error;
-    type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
+    type Future = Box<Future<Item=Response<Self::ResBody>, Error=Self::Error>+Send>;
 
-    fn call(&self, req: Request) -> Self::Future {
-
+    fn call(&mut self, req: Request<Self::ReqBody>) -> Self::Future {
         // Parse cookies.
         let opt_client_key = {
             let jwt_secret = self.jwt_secret.lock().unwrap();
@@ -214,71 +279,27 @@ impl hyper::server::Service for BuiService {
 
         trace!("got request from key {:?}: {:?}", opt_client_key, req);
 
-        if req.method() == &Post {
-            if req.path() == "/callback" {
+        if req.method() == &Method::POST {
+            if req.uri().path() == "/callback" {
                 let session_key = if let Some(session_key) = opt_client_key {
                     session_key
                 } else {
                     error!("no client key in callback");
-                    return Box::new(futures::future::ok(Response::new()
-                        .with_header( hyper::header::ContentType::plaintext() )
-                        .with_status(StatusCode::BadRequest)));
+                    let resp = Response::builder()
+                        // .header(hyper::header::CONTENT_TYPE, "text/plain")
+                        .status(StatusCode::BAD_REQUEST)
+                        .body(hyper::Body::empty()).expect("response");
+                    return Box::new(futures::future::ok(resp));
                 };
 
-                let bytes_future = into_bytes(req.body()).map_err(|e| e.into());
-                let cbsenders = self.callback_senders.clone();
-
-                let resp_future = bytes_future
-                    .and_then(move |data| -> futures::future::FutureResult<_, hyper::Error> {
-                        let resp = match serde_json::from_slice::<WireCallbackData>(&data) {
-                            Ok(data) => {
-                                {
-
-                                    let mut cb_tx_vec = cbsenders.lock().unwrap();
-                                    let mut restore_tx = Vec::new();
-
-                                    let cmd_name = data.name.clone();
-                                    let args = CallbackDataAndSession {
-                                        name: data.name,
-                                        args: data.args,
-                                        session_key: session_key,
-                                    };
-                                    for tx in cb_tx_vec.drain(..) {
-                                        // TODO can we somehow do this without waiting?
-                                        match tx.send(args.clone()).wait() {
-                                            Ok(t) => restore_tx.push(t),
-                                            Err(e) => {
-                                                // listener failed
-                                                warn!("when sending callback {:?}, error: {:?}",
-                                                      cmd_name,
-                                                      e);
-                                            }
-                                        };
-                                    }
-
-                                    for tx in restore_tx.into_iter() {
-                                        cb_tx_vec.push(tx);
-                                    }
-
-                                }
-
-                                Response::new().with_header(hyper::header::ContentType::plaintext())
-                            }
-                            Err(e) => {
-                                error!("Failed parsing JSON to WireCallbackData: {:?}", e);
-                                Response::new()
-                                    .with_header(hyper::header::ContentType::plaintext())
-                                    .with_status(StatusCode::BadRequest)
-                            }
-                        };
-                        futures::future::ok(resp)
-                    });
-                return Box::new(resp_future);
+                return self.handle_callback( req, session_key );
             }
         }
 
-        let (session_key, resp) = if let Some(key) = opt_client_key {
-            (key, Response::<hyper::Body>::new())
+        let mut resp = Response::builder();
+
+        let session_key = if let Some(key) = opt_client_key {
+            key
         } else {
             // There was no valid client key in the HTTP header, so generate a
             // new one and set it on client.
@@ -291,107 +312,110 @@ impl hyper::server::Service for BuiService {
                     .unwrap()
             };
             let cookie = format!("{}={}", self.config.cookie_name, token);
-            (session_key,
-             Response::<hyper::Body>::new().with_header(hyper::header::SetCookie(vec![cookie])))
+            resp.header(
+                hyper::header::SET_COOKIE,
+                hyper::header::HeaderValue::from_str(&cookie).unwrap());
+            session_key
         };
 
-        let resp_final = match (req.method(), req.path()) {
-            (&Get, path) => {
+        let resp_final = match (req.method(), req.uri().path()) {
+            (&Method::GET, path) => {
 
                 let path = if path == "/" { "/index.html" } else { path };
 
                 if path.starts_with(&self.events_prefix) {
-                    match req.headers().get::<Accept>() {
-                        Some(accept_headers) => {
-                            let (_, is_eventsource) = accept_headers
-                                .as_slice()
-                                .iter()
-                                .fold((hyper::header::q(0), false), |prev, quality_item| {
-                                    let (mut best_qual, mut is_eventsource) = prev;
-                                    let this_quality = quality_item.quality;
-                                    if this_quality > best_qual {
-                                        best_qual = this_quality;
-                                        let (ref top_level, ref sub_level) =
-                                            (quality_item.item.type_(),
-                                             quality_item.item.subtype());
-                                        is_eventsource = top_level == &mime::TEXT &&
-                                                         sub_level == &mime::EVENT_STREAM;
-                                    }
-                                    (best_qual, is_eventsource)
-                                });
-                            if !is_eventsource {
-                                warn!("HTTP GET for \"{}\" does not list text/event-stream \
-                                      in accepted header",
-                                      self.events_prefix);
-                            }
 
-                            let connection_key = self.get_next_connection_key();
-                            let (tx_event_stream, rx_event_stream) =
-                                mpsc::channel(self.config.channel_size);
+                    // Quality value parsing disabled with the following hack
+                    // until this is addressed:
+                    // https://github.com/hyperium/http/issues/213
 
-                            {
-                                let tx_new_conn = self.tx_new_connection.clone();
-                                let conn_info = NewEventStreamConnection {
-                                    chunk_sender: tx_event_stream,
-                                    session_key: session_key,
-                                    connection_key: connection_key,
-                                    path: path.to_string(),
-                                };
-
-                                match tx_new_conn.send(conn_info).wait() {
-                                    Ok(_tx) => {} // Cloned above, so don't need to keep _tx here.
-                                    Err(e) => {
-                                        error!("failed to send new connection info: {:?}", e);
-                                        // should we panic here?
-                                    }
-                                };
-                            }
-
-                            resp.with_header(hyper::header::ContentType(mime::TEXT_EVENT_STREAM))
-                                .with_body(rx_event_stream)
-                        }
-                        None => {
-                            error!("Event request does specify accept header");
-                            resp.with_status(StatusCode::BadRequest)
+                    let mut accepts_event_stream = false;
+                    for value in req.headers().get_all(ACCEPT).iter() {
+                        if value.to_str().expect("to_str()").contains("text/event-stream") {
+                            accepts_event_stream = true;
                         }
                     }
+
+                    if accepts_event_stream {
+                        let connection_key = self.get_next_connection_key();
+                        let (tx_event_stream, rx_event_stream) =
+                            mpsc::channel(self.config.channel_size);
+
+                        {
+                            let tx_new_conn = self.tx_new_connection.clone();
+                            let conn_info = NewEventStreamConnection {
+                                chunk_sender: tx_event_stream,
+                                session_key: session_key,
+                                connection_key: connection_key,
+                                path: path.to_string(),
+                            };
+
+                            match tx_new_conn.send(conn_info).wait() {
+                                Ok(_tx) => {} // Cloned above, so don't need to keep _tx here.
+                                Err(e) => {
+                                    error!("failed to send new connection info: {:?}", e);
+                                    // should we panic here?
+                                }
+                            };
+                        }
+
+                        resp.header(
+                            hyper::header::CONTENT_TYPE,
+                            hyper::header::HeaderValue::from_str("text/event-stream").expect("from_str"));
+
+                        // resp.header(hyper::header::ContentType(mime::TEXT_EVENT_STREAM))
+                            // .with_body(rx_event_stream);
+                        resp.body( hyper::Body::wrap_stream( rx_event_stream.map_err(|_| MyError{}) ) )
+                        .expect("response") // todo map err
+                    } else {
+                        error!("Event request does specify 'Accept' or does \
+                            not accept the required 'text/event-stream'");
+                        resp.status(StatusCode::BAD_REQUEST);
+                        resp.body(hyper::Body::empty())
+                        .expect("response") // todo map err
+                    }
                 } else {
+                    // TODO read file asynchronously
                     match self.get_file_content(path) {
                         Some(buf) => {
-                            resp.with_header(ContentLength(buf.len() as u64))
-                                .with_body(buf)
+                            let len = buf.len();
+                            let body = hyper::Body::from(buf);
+                            resp.header(hyper::header::CONTENT_LENGTH,
+                                format!("{}",len).as_bytes());
+                            resp.body(body)
+                            .expect("response") // todo map err
                         }
-                        None => resp.with_status(StatusCode::NotFound),
+                        None => {
+                            resp.status(StatusCode::NOT_FOUND);
+                            resp.body(hyper::Body::empty())
+                            .expect("response") // todo map err
+                        }
                     }
                 }
             }
-            _ => resp.with_status(StatusCode::NotFound),
+            _ => {
+                resp.status(StatusCode::NOT_FOUND);
+                resp.body(hyper::Body::empty())
+                .expect("response") // todo map err
+            }
         };
         Box::new(futures::future::ok(resp_final))
     }
 }
 
-/// Implement the `hyper::server::NewService` trait to return a `BuiService`.
-pub struct NewBuiService {
-    value: Box<Fn() -> std::result::Result<BuiService, std::io::Error> + Send + Sync>,
+#[derive(Debug)]
+struct MyError {
 }
 
-impl NewBuiService {
-    /// Return a NewBuiService for the given boxed function.
-    pub fn new(value: Box<Fn() -> std::result::Result<BuiService, std::io::Error> + Send + Sync>)
-               -> NewBuiService {
-        Self { value }
+impl std::error::Error for MyError {
+    fn description(&self) -> &str {
+        return "MyError"
     }
 }
 
-impl hyper::server::NewService for NewBuiService {
-    type Request = Request;
-    type Response = Response;
-    type Error = hyper::Error;
-    type Instance = BuiService;
-
-    fn new_service(&self) -> std::result::Result<Self::Instance, std::io::Error> {
-        (self.value)()
+impl std::fmt::Display for MyError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
+        write!(fmt, "MyError")
     }
 }
 
