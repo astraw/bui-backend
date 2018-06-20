@@ -10,7 +10,7 @@ license = "MIT/Apache-2.0"
 bui-backend = {version="0.6", default-features = false, path=".."}
 log = "0.4"
 env_logger = "0.5"
-tokio-change-tracker = {path="../../tokio-change-tracker"}
+change-tracker = {git="https://bare-git.strawlab.org/change-tracker.git"}
 includedir = "0.2.0"
 phf = "0.7.12"
 serde = "1.0"

@@ -51,7 +51,7 @@ extern crate serde_derive;
 
 #[macro_use]
 extern crate log;
-extern crate tokio_change_tracker;
+extern crate change_tracker;
 #[cfg(feature = "bundle_files")]
 extern crate includedir;
 extern crate serde;

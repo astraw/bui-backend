@@ -5,7 +5,7 @@ use lowlevel::{BuiService, ConnectionKeyType, SessionKeyType, EventChunkSender,
                CallbackDataAndSession, Config, launcher};
 use {std, hyper, serde, serde_json, futures};
 
-use tokio_change_tracker::DataTracker;
+use change_tracker::DataTracker;
 
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;

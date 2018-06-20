@@ -17,7 +17,7 @@ includedir = "0.2.0"
 tokio-executor = "0.1"
 hyper = "0.12"
 rand = "0.4"
-tokio-change-tracker = {path="../tokio-change-tracker"}
+change-tracker = {git="https://bare-git.strawlab.org/change-tracker.git"}
 log = "0.4"
 serde = "1.0"
 serde_derive = "1.0"
