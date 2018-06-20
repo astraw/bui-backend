@@ -197,7 +197,7 @@ fn run() -> Result<(),Error> {
     let tracker_arc = my_app.inner.shared_arc().clone();
 
     // Create a stream to call our closure every second.
-    let interval_stream: tokio_timer::Interval = tokio_timer::Interval::new(
+    let interval_stream = tokio_timer::Interval::new(
         std::time::Instant::now(), std::time::Duration::from_millis(1000));
 
     let stream_future = interval_stream
