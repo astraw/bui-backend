@@ -161,7 +161,7 @@ pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
     let change_listener = {
         let rx = {
             let mut shared = shared_store2.lock().unwrap();
-            shared.add_listener()
+            shared.get_changes()
         };
         let rx = rx.for_each(move |x| {
             let (_old, new_value) = x;

@@ -3,7 +3,7 @@ extern crate failure;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
-extern crate raii_change_tracker;
+extern crate tokio_change_tracker;
 extern crate bui_backend;
 #[cfg(feature = "bundle_files")]
 extern crate includedir;
@@ -23,7 +23,7 @@ use failure::Error;
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, Mutex};
 
-use raii_change_tracker::DataTracker;
+use tokio_change_tracker::DataTracker;
 use bui_backend::highlevel::{BuiAppInner, create_bui_app_inner};
 
 use futures::{Future, Stream};
@@ -110,7 +110,7 @@ impl MyApp {
                         match serde_json::from_value::<bool>(msg.args) {
                             Ok(bool_value) => {
                                 // Update our shared store with the value received.
-                                shared.as_tracked_mut().is_recording = bool_value;
+                                shared.modify(|shared| shared.is_recording = bool_value);
                             },
                             Err(e) => {
                                 error!("could not cast json value to bool: {:?}", e);
@@ -122,7 +122,7 @@ impl MyApp {
                         match serde_json::from_value::<String>(msg.args) {
                             Ok(name) => {
                                 // Update our shared store with the value received.
-                                shared.as_tracked_mut().name = name;
+                                shared.modify(|shared| shared.name = name);
                             },
                             Err(e) => {
                                 error!("could not cast json value to String: {:?}", e);
@@ -202,12 +202,13 @@ fn run() -> Result<(),Error> {
 
     let stream_future = interval_stream
         .for_each(move |_| {
-                      // This closure is called once a second. Update a counter
-                      // in our shared data store.
-                      let mut shared_store = tracker_arc.lock().unwrap();
-                      let mut shared = shared_store.as_tracked_mut();
-                      shared.counter += 1;
-                      Ok(())
+                    // This closure is called once a second. Update a counter
+                    // in our shared data store.
+                    let mut shared_store = tracker_arc.lock().unwrap();
+                    shared_store.modify(|shared| {
+                        shared.counter += 1;
+                    });
+                    Ok(())
                   })
         .map_err(|e| {
                      error!("interval error {:?}", e);
