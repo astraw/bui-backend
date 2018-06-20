@@ -383,12 +383,12 @@ impl hyper::service::Service for BuiService {
                             resp.header(hyper::header::CONTENT_LENGTH,
                                 format!("{}",len).as_bytes());
                             resp.body(body)
-                            .expect("response") // todo map err
+                                .expect("response") // todo map err
                         }
                         None => {
                             resp.status(StatusCode::NOT_FOUND);
                             resp.body(hyper::Body::empty())
-                            .expect("response") // todo map err
+                                .expect("response") // todo map err
                         }
                     }
                 }
