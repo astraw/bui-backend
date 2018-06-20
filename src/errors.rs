@@ -9,6 +9,8 @@ pub enum Error {
     Hyper(#[cause] hyper::Error),
     #[fail(display = "tokio_executor::SpawnError")]
     TokioSpawn,
+    #[fail(display = "rx event")]
+    RxEvent,
 }
 
 impl From<hyper::Error> for Error {

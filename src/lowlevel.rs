@@ -2,6 +2,7 @@
 use {serde_json, std, futures, jsonwebtoken};
 #[cfg(feature = "bundle_files")]
 use includedir;
+use failure::Fail;
 use hyper;
 
 use hyper::{Method, StatusCode};
@@ -13,6 +14,8 @@ use futures::{Future, Stream, Sink};
 use futures::sync::mpsc;
 
 use std::sync::{Arc, Mutex};
+
+use Error;
 
 #[cfg(feature = "serve_files")]
 use std::io::Read;
@@ -362,7 +365,7 @@ impl hyper::service::Service for BuiService {
 
                         // resp.header(hyper::header::ContentType(mime::TEXT_EVENT_STREAM))
                             // .with_body(rx_event_stream);
-                        resp.body( hyper::Body::wrap_stream( rx_event_stream.map_err(|_| MyError{}) ) )
+                        resp.body( hyper::Body::wrap_stream( rx_event_stream.map_err(|_| Error::RxEvent.compat() ) ) )
                         .expect("response") // todo map err
                     } else {
                         error!("Event request does specify 'Accept' or does \
@@ -397,23 +400,6 @@ impl hyper::service::Service for BuiService {
             }
         };
         Box::new(futures::future::ok(resp_final))
-    }
-}
-
-// TODO improve this.
-#[derive(Debug)]
-struct MyError {
-}
-
-impl std::error::Error for MyError {
-    fn description(&self) -> &str {
-        return "MyError"
-    }
-}
-
-impl std::fmt::Display for MyError {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
-        write!(fmt, "MyError")
     }
 }
 
