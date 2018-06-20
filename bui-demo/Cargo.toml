@@ -10,7 +10,7 @@ license = "MIT/Apache-2.0"
 bui-backend = {version="0.7", default-features = false, path=".."}
 log = "0.4"
 env_logger = "0.5"
-change-tracker = {git="https://bare-git.strawlab.org/change-tracker.git"}
+change-tracker = {git="https://bare-git.strawlab.org/change-tracker.git", rev="f217c1fe803ca94f4a06eed0d7eae9b229fc1f2b"}
 includedir = "0.2.0"
 phf = "0.7.12"
 serde = "1.0"
