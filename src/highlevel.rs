@@ -171,7 +171,7 @@ pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
 
                     let chunk = event_source_msg.clone().into();
 
-                    match tx.send(chunk).wait() {
+                    match tx.send(chunk).wait() { // TODO: can I really wait here?
                         Ok(tx) => {
                             restore.push((connection_key, (session_key, tx)));
                         }
