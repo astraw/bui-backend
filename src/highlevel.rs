@@ -37,8 +37,6 @@ pub struct ConnectionEvent {
     pub session_key: SessionKeyType,
     /// Identifier for the connection (one ber tab).
     pub connection_key: ConnectionKeyType,
-    /// The path being requested (starts with `BuiService::events_prefix`).
-    pub path: String,
 }
 
 // ------
@@ -48,7 +46,7 @@ pub struct BuiAppInner<T>
     where T: Clone + PartialEq + Serialize + Send
 {
     i_shared_arc: Arc<Mutex<DataTracker<T>>>,
-    i_txers: Arc<Mutex<HashMap<ConnectionKeyType, (SessionKeyType, EventChunkSender, String)>>>,
+    i_txers: Arc<Mutex<HashMap<ConnectionKeyType, (SessionKeyType, EventChunkSender)>>>,
     i_bui_server: BuiService,
 }
 
@@ -80,11 +78,11 @@ pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
                                addr: &SocketAddr,
                                config: Config,
                                chan_size: usize,
-                               events_prefix: &str)
+                               events_path: &str)
                                -> Result<(mpsc::Receiver<ConnectionEvent>, BuiAppInner<T>), Error>
     where T: Clone + PartialEq + Serialize + 'static + Send,
 {
-    let (rx_conn, bui_server) = launcher(config, &jwt_secret, chan_size, events_prefix);
+    let (rx_conn, bui_server) = launcher(config, &jwt_secret, chan_size, events_path);
 
     let b2 = bui_server.clone();
 
@@ -124,12 +122,10 @@ pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
         let nct = new_conn_tx2.clone();
         let typ = ConnectionEventType::Connect(chunk_sender.clone());
         let session_key = ckey.clone();
-        let path = conn_info.path.clone();
         match nct.send(ConnectionEvent {
                            typ,
                            session_key,
                            connection_key,
-                           path,
                        })
                   .wait() {
             Ok(_tx) => {}
@@ -142,7 +138,7 @@ pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
         match chunk_sender.send(hc).wait() {
             Ok(chunk_sender) => {
                 let mut txer_guard = txers2.lock().unwrap();
-                txer_guard.insert(connection_key, (ckey, chunk_sender, conn_info.path));
+                txer_guard.insert(connection_key, (ckey, chunk_sender));
                 futures::future::ok(())
             }
             Err(e) => {
@@ -171,13 +167,13 @@ pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
 
                 let event_source_msg = create_event_source_msg(&new_value);
 
-                for (connection_key, (session_key, tx, path)) in sources.drain() {
+                for (connection_key, (session_key, tx)) in sources.drain() {
 
                     let chunk = event_source_msg.clone().into();
 
                     match tx.send(chunk).wait() {
                         Ok(tx) => {
-                            restore.push((connection_key, (session_key, tx, path)));
+                            restore.push((connection_key, (session_key, tx)));
                         }
                         Err(e) => {
                             info!("Failed to send data to event stream, client \
@@ -189,7 +185,6 @@ pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
                                 typ,
                                 session_key,
                                 connection_key,
-                                path,
                             };
                             match nct.send(ce).wait() {
                                 Ok(_tx) => {}
