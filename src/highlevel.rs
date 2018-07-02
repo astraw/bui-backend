@@ -74,7 +74,7 @@ impl<T> BuiAppInner<T>
 }
 
 /// Factory function to create a new BUI application.
-pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
+pub fn create_bui_app_inner<T>(my_executor: &mut dyn Executor,
                                jwt_secret: Option<&[u8]>,
                                shared_arc: Arc<Mutex<DataTracker<T>>>,
                                addr: &SocketAddr,
