@@ -73,7 +73,7 @@ impl<T> BuiAppInner<T>
 
 /// Factory function to create a new BUI application.
 pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
-                               jwt_secret: &[u8],
+                               jwt_secret: Option<&[u8]>,
                                shared_arc: Arc<Mutex<DataTracker<T>>>,
                                addr: &SocketAddr,
                                config: Config,
@@ -82,7 +82,7 @@ pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
                                -> Result<(mpsc::Receiver<ConnectionEvent>, BuiAppInner<T>), Error>
     where T: Clone + PartialEq + Serialize + 'static + Send,
 {
-    let (rx_conn, bui_server) = launcher(config, &jwt_secret, chan_size, events_path);
+    let (rx_conn, bui_server) = launcher(config, jwt_secret, chan_size, events_path);
 
     let b2 = bui_server.clone();
 

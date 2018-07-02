@@ -93,7 +93,7 @@ pub struct BuiService {
     config: Config,
     callback_senders: Arc<Mutex<Vec<mpsc::Sender<CallbackDataAndSession>>>>,
     next_connection_key: Arc<Mutex<ConnectionKeyType>>,
-    jwt_secret: Arc<Mutex<Vec<u8>>>,
+    jwt_secret: Arc<Mutex<Option<Vec<u8>>>>,
     tx_new_connection: NewConnectionSender,
     events_path: String,
 }
@@ -274,8 +274,11 @@ impl hyper::service::Service for BuiService {
     fn call(&mut self, req: Request<Self::ReqBody>) -> Self::Future {
         // Parse cookies.
         let opt_client_key = {
-            let jwt_secret = self.jwt_secret.lock().unwrap();
-            get_client_key(&req.headers(), &self.config.cookie_name, &*jwt_secret)
+            if let Some(ref jwt_secret) = *self.jwt_secret.lock().unwrap() {
+                get_client_key(&req.headers(), &self.config.cookie_name, &*jwt_secret)
+            } else {
+                None
+            }
         };
 
         trace!("got request from key {:?}: {:?}", opt_client_key, req);
@@ -307,15 +310,17 @@ impl hyper::service::Service for BuiService {
             let session_key = Uuid::new_v4();
             let claims = JwtClaims { key: session_key.clone() };
 
-            let token = {
-                let jwt_secret = self.jwt_secret.lock().unwrap();
-                jsonwebtoken::encode(&jsonwebtoken::Header::default(), &claims, &*jwt_secret)
-                    .unwrap()
-            };
-            let cookie = format!("{}={}", self.config.cookie_name, token);
-            resp.header(
-                hyper::header::SET_COOKIE,
-                hyper::header::HeaderValue::from_str(&cookie).unwrap());
+
+            if let Some(ref jwt_secret) = *self.jwt_secret.lock().unwrap() {
+                let token = {
+                    jsonwebtoken::encode(&jsonwebtoken::Header::default(), &claims, &*jwt_secret)
+                        .unwrap()
+                };
+                let cookie = format!("{}={}", self.config.cookie_name, token);
+                resp.header(
+                    hyper::header::SET_COOKIE,
+                    hyper::header::HeaderValue::from_str(&cookie).unwrap());
+            }
             session_key
         };
 
@@ -405,7 +410,7 @@ impl hyper::service::Service for BuiService {
 
 /// Create a stream of connection events and a `BuiService`.
 pub fn launcher(config: Config,
-                jwt_secret: &[u8],
+                jwt_secret: Option<&[u8]>,
                 channel_size: usize,
                 events_path: &str)
                 -> (mpsc::Receiver<NewEventStreamConnection>, BuiService) {
@@ -413,7 +418,7 @@ pub fn launcher(config: Config,
 
     let callback_senders = Arc::new(Mutex::new(Vec::new()));
 
-    let jwt_secret = jwt_secret.to_vec();
+    let jwt_secret = jwt_secret.map(|x| x.to_vec());
     let (tx_new_connection, rx_new_connection) = mpsc::channel(channel_size);
 
     let service = BuiService {

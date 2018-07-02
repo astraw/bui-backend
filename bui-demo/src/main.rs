@@ -83,7 +83,7 @@ impl MyApp {
 
         // Create `inner`, which takes care of the browser communication details for us.
         let chan_size = 10;
-        let (_, mut inner) = create_bui_app_inner(executor, &secret,
+        let (_, mut inner) = create_bui_app_inner(executor, Some(secret),
             shared_store, &addr, config, chan_size, "/events")?;
 
         // Make a clone of our shared state Arc which will be moved into our callback handler.
