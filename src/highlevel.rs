@@ -135,6 +135,7 @@ pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
             }
         };
 
+        // TODO: get rid of wait here?
         match chunk_sender.send(hc).wait() {
             Ok(chunk_sender) => {
                 let mut txer_guard = txers2.lock().unwrap();
