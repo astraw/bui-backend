@@ -78,6 +78,8 @@ pub struct NewEventStreamConnection {
     pub session_key: SessionKeyType,
     /// Identifier for each connection (one per client tab).
     pub connection_key: ConnectionKeyType,
+    /// The path being requested (starts with `BuiService::events_prefix`).
+    pub path: String,
 }
 
 type NewConnectionSender = mpsc::Sender<NewEventStreamConnection>;
@@ -95,7 +97,7 @@ pub struct BuiService {
     next_connection_key: Arc<Mutex<ConnectionKeyType>>,
     jwt_secret: Arc<Mutex<Option<Vec<u8>>>>,
     tx_new_connection: NewConnectionSender,
-    events_path: String,
+    events_prefix: String,
 }
 
 impl BuiService {
@@ -144,8 +146,8 @@ impl BuiService {
     }
 
     /// Get the event stream path prefix.
-    pub fn events_path(&self) -> &str {
-        &self.events_path
+    pub fn events_prefix(&self) -> &str {
+        &self.events_prefix
     }
 
     fn get_next_connection_key(&self) -> ConnectionKeyType {
@@ -329,7 +331,7 @@ impl hyper::service::Service for BuiService {
 
                 let path = if path == "/" { "/index.html" } else { path };
 
-                if path == &self.events_path {
+                if path.starts_with(&self.events_prefix) {
 
                     // Quality value parsing disabled with the following hack
                     // until this is addressed:
@@ -353,6 +355,7 @@ impl hyper::service::Service for BuiService {
                                 chunk_sender: tx_event_stream,
                                 session_key: session_key,
                                 connection_key: connection_key,
+                                path: path.to_string(),
                             };
 
                             match tx_new_conn.send(conn_info).wait() {
@@ -412,7 +415,7 @@ impl hyper::service::Service for BuiService {
 pub fn launcher(config: Config,
                 jwt_secret: Option<&[u8]>,
                 channel_size: usize,
-                events_path: &str)
+                events_prefix: &str)
                 -> (mpsc::Receiver<NewEventStreamConnection>, BuiService) {
     let next_connection_key = Arc::new(Mutex::new(0));
 
@@ -427,7 +430,7 @@ pub fn launcher(config: Config,
         next_connection_key: next_connection_key,
         jwt_secret: Arc::new(Mutex::new(jwt_secret.clone())),
         tx_new_connection: tx_new_connection,
-        events_path: events_path.to_string(),
+        events_prefix: events_prefix.to_string(),
     };
 
     (rx_new_connection, service)
