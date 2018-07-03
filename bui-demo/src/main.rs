@@ -24,7 +24,7 @@ use std::net::ToSocketAddrs;
 use std::sync::{Arc, Mutex};
 
 use change_tracker::DataTracker;
-use bui_backend::highlevel::{BuiAppInner, create_bui_app_inner};
+use bui_backend::highlevel::{BuiAppInner, create_bui_app_inner, BuiExecutor};
 
 use futures::{Future, Stream};
 use bui_demo_data::Shared;
@@ -83,7 +83,7 @@ impl MyApp {
 
         // Create `inner`, which takes care of the browser communication details for us.
         let chan_size = 10;
-        let (_, mut inner) = create_bui_app_inner(executor, Some(secret),
+        let (_, mut inner) = create_bui_app_inner(BuiExecutor::Default, Some(secret),
             shared_store, &addr, config, chan_size, "/events")?;
 
         // Make a clone of our shared state Arc which will be moved into our callback handler.

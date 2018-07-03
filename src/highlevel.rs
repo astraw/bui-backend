@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use futures::{Future, Sink, Stream};
 use futures::sync::mpsc;
-use tokio_executor::Executor;
+use tokio_executor::{Executor, DefaultExecutor};
 use serde::Serialize;
 
 use ::Error;
@@ -73,8 +73,13 @@ impl<T> BuiAppInner<T>
     }
 }
 
+pub enum BuiExecutor {
+    Default,
+    // MyExecutor<T>,
+}
+
 /// Factory function to create a new BUI application.
-pub fn create_bui_app_inner<T>(my_executor: &mut dyn Executor,
+pub fn create_bui_app_inner<T>(my_executor: BuiExecutor,
                                jwt_secret: Option<&[u8]>,
                                shared_arc: Arc<Mutex<DataTracker<T>>>,
                                addr: &SocketAddr,
@@ -93,9 +98,14 @@ pub fn create_bui_app_inner<T>(my_executor: &mut dyn Executor,
     let server = hyper::Server::bind(&addr)
         .serve(new_service);
 
-    my_executor.spawn(Box::new(server.map_err(|e| {
-        eprintln!("server error: {}", e);
-    })))?;
+    match my_executor {
+        BuiExecutor::Default => {
+            DefaultExecutor::current()
+                .spawn(Box::new(server.map_err(|e| {
+                eprintln!("server error: {}", e);
+            })))?;
+        }
+    };
 
     let inner = BuiAppInner {
         i_shared_arc: shared_arc,
@@ -152,7 +162,13 @@ pub fn create_bui_app_inner<T>(my_executor: &mut dyn Executor,
             }
         }
     });
-    my_executor.spawn(Box::new(handle_connections))?;
+
+    match my_executor {
+        BuiExecutor::Default => {
+            DefaultExecutor::current()
+                .spawn(Box::new(handle_connections))?;
+        }
+    };
 
     // --- push changes
 
@@ -214,7 +230,14 @@ pub fn create_bui_app_inner<T>(my_executor: &mut dyn Executor,
         rx
     };
     let send_fut: Box<Future<Item=_,Error=_>+Send> = Box::new(change_listener);
-    my_executor.spawn(send_fut)?;
+
+    match my_executor {
+        BuiExecutor::Default => {
+            DefaultExecutor::current()
+                .spawn(send_fut)?;
+        }
+    };
+
 
     Ok((new_conn_rx, inner))
 }
