@@ -15,7 +15,7 @@ bui-backend-codegen = {version="0.1.1", default-features = false, path="codegen"
 futures = "0.1.11"
 includedir = "0.2.0"
 tokio-executor = "0.1"
-hyper = "0.12"
+hyper = {version="0.12", default-features = false}
 rand = "0.4"
 change-tracker = {git="https://bare-git.strawlab.org/change-tracker.git", rev="f217c1fe803ca94f4a06eed0d7eae9b229fc1f2b"}
 log = "0.4"
