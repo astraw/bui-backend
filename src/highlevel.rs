@@ -12,7 +12,8 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use futures::{Future, Sink, Stream};
 use futures::sync::mpsc;
-use tokio_executor::{Executor, DefaultExecutor};
+use tokio_executor::{Executor, DefaultExecutor, SpawnError};
+
 use serde::Serialize;
 
 use ::Error;
@@ -75,11 +76,32 @@ impl<T> BuiAppInner<T>
 
 pub enum BuiExecutor {
     Default,
-    // MyExecutor<T>,
+    MyExecutor(Box<dyn Executor>),
+}
+
+impl BuiExecutor {
+
+    pub fn from(x: Box<dyn Executor>) -> Self {
+        BuiExecutor::MyExecutor(x)
+    }
+
+    pub fn spawn(&mut self, future: Box<Future<Item = (), Error = ()> + 'static + Send>) -> Result<(), SpawnError>
+    {
+        match self {
+            BuiExecutor::Default => {
+                DefaultExecutor::current()
+                    .spawn(future)?;
+            }
+            BuiExecutor::MyExecutor(ref mut x) => {
+                x.spawn(future)?;
+            }
+        };
+        Ok(())
+    }
 }
 
 /// Factory function to create a new BUI application.
-pub fn create_bui_app_inner<T>(my_executor: BuiExecutor,
+pub fn create_bui_app_inner<T>(my_executor: &mut BuiExecutor,
                                jwt_secret: Option<&[u8]>,
                                shared_arc: Arc<Mutex<DataTracker<T>>>,
                                addr: &SocketAddr,
@@ -98,14 +120,9 @@ pub fn create_bui_app_inner<T>(my_executor: BuiExecutor,
     let server = hyper::Server::bind(&addr)
         .serve(new_service);
 
-    match my_executor {
-        BuiExecutor::Default => {
-            DefaultExecutor::current()
-                .spawn(Box::new(server.map_err(|e| {
+    my_executor.spawn(Box::new(server.map_err(|e| {
                 eprintln!("server error: {}", e);
             })))?;
-        }
-    };
 
     let inner = BuiAppInner {
         i_shared_arc: shared_arc,
@@ -163,12 +180,7 @@ pub fn create_bui_app_inner<T>(my_executor: BuiExecutor,
         }
     });
 
-    match my_executor {
-        BuiExecutor::Default => {
-            DefaultExecutor::current()
-                .spawn(Box::new(handle_connections))?;
-        }
-    };
+    my_executor.spawn(Box::new(handle_connections))?;
 
     // --- push changes
 
@@ -231,13 +243,7 @@ pub fn create_bui_app_inner<T>(my_executor: BuiExecutor,
     };
     let send_fut: Box<Future<Item=_,Error=_>+Send> = Box::new(change_listener);
 
-    match my_executor {
-        BuiExecutor::Default => {
-            DefaultExecutor::current()
-                .spawn(send_fut)?;
-        }
-    };
-
+    my_executor.spawn(send_fut)?;
 
     Ok((new_conn_rx, inner))
 }

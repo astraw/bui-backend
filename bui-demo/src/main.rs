@@ -72,7 +72,7 @@ fn jwt_secret(matches: &clap::ArgMatches, required: bool) -> Result<Vec<u8>,Erro
 
 impl MyApp {
     /// Create our app
-    fn new(executor: &mut tokio::runtime::TaskExecutor, secret: &[u8], addr: &std::net::SocketAddr, config: Config) -> Result<Self, Error> {
+    fn new(mut executor: &mut BuiExecutor, secret: &[u8], addr: &std::net::SocketAddr, config: Config) -> Result<Self, Error> {
 
         // Create our shared state.
         let shared_store = Arc::new(Mutex::new(DataTracker::new(Shared {
@@ -83,7 +83,7 @@ impl MyApp {
 
         // Create `inner`, which takes care of the browser communication details for us.
         let chan_size = 10;
-        let (_, mut inner) = create_bui_app_inner(BuiExecutor::Default, Some(secret),
+        let (_, mut inner) = create_bui_app_inner(&mut executor, Some(secret),
             shared_store, &addr, config, chan_size, "/events")?;
 
         // Make a clone of our shared state Arc which will be moved into our callback handler.
@@ -137,7 +137,7 @@ impl MyApp {
             });
 
         // Add our future into the event loop created by hyper.
-        executor.spawn(callback_rx_future);
+        executor.spawn(Box::new(callback_rx_future))?;
 
         // Return our app.
         Ok(MyApp { inner: inner })
@@ -190,8 +190,10 @@ fn run() -> Result<(),Error> {
     let mut runtime = tokio::runtime::Runtime::new().expect("runtime");
 
     // Create our app.
-    let mut executor = runtime.executor();
-    let my_app = MyApp::new(&mut executor, &secret, &http_server_addr, config)?;
+    let executor = runtime.executor();
+    let mut exec = BuiExecutor::from(Box::new(executor));
+    let my_app = MyApp::new(&mut exec, &secret, &http_server_addr,
+        config)?;
 
     // Clone our shared data to move it into a closure later.
     let tracker_arc = my_app.inner.shared_arc().clone();
