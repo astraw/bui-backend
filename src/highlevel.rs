@@ -76,14 +76,19 @@ impl<T> BuiAppInner<T>
 
 pub enum BuiExecutor {
     Default,
-    MyExecutor(Box<dyn Executor>),
+    Executor(Box<dyn Executor>),
+    MultiThreaded(tokio::runtime::Runtime),
     SingleThread(tokio::runtime::current_thread::Runtime),
 }
 
 impl BuiExecutor {
 
     pub fn from(x: Box<dyn Executor>) -> Self {
-        BuiExecutor::MyExecutor(x)
+        BuiExecutor::Executor(x)
+    }
+
+    pub fn from_multi_threaded(x: tokio::runtime::Runtime) -> Self {
+        BuiExecutor::MultiThreaded(x)
     }
 
     pub fn from_single_thread(x: tokio::runtime::current_thread::Runtime) -> Self {
@@ -97,8 +102,11 @@ impl BuiExecutor {
                 DefaultExecutor::current()
                     .spawn(future)?;
             }
-            BuiExecutor::MyExecutor(ref mut x) => {
+            BuiExecutor::Executor(ref mut x) => {
                 x.spawn(future)?;
+            }
+            BuiExecutor::MultiThreaded(ref mut x) => {
+                x.spawn(future);
             }
             BuiExecutor::SingleThread(ref mut x) => {
                 x.spawn(future);
@@ -113,7 +121,10 @@ impl BuiExecutor {
             BuiExecutor::Default => {
                 panic!("cannot spawn single-threaded with default executor");
             }
-            BuiExecutor::MyExecutor(ref mut _x) => {
+            BuiExecutor::Executor(ref mut _x) => {
+                panic!("cannot spawn single-threaded with executor");
+            }
+            BuiExecutor::MultiThreaded(ref mut _x) => {
                 panic!("cannot spawn single-threaded with multi-threaded executor");
             }
             BuiExecutor::SingleThread(ref mut x) => {
@@ -122,8 +133,6 @@ impl BuiExecutor {
         };
         Ok(())
     }
-
-
 }
 
 /// Factory function to create a new BUI application.
