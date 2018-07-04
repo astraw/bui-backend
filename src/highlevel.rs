@@ -3,7 +3,7 @@
 //! The API in this module is likely to change as ergonomics get better.
 use lowlevel::{BuiService, ConnectionKeyType, SessionKeyType, EventChunkSender,
                CallbackDataAndSession, Config, launcher};
-use {std, hyper, serde, serde_json, futures};
+use {std, hyper, serde, serde_json, futures, tokio};
 
 use change_tracker::DataTracker;
 
@@ -77,12 +77,17 @@ impl<T> BuiAppInner<T>
 pub enum BuiExecutor {
     Default,
     MyExecutor(Box<dyn Executor>),
+    SingleThread(tokio::runtime::current_thread::Runtime),
 }
 
 impl BuiExecutor {
 
     pub fn from(x: Box<dyn Executor>) -> Self {
         BuiExecutor::MyExecutor(x)
+    }
+
+    pub fn from_single_thread(x: tokio::runtime::current_thread::Runtime) -> Self {
+        BuiExecutor::SingleThread(x)
     }
 
     pub fn spawn(&mut self, future: Box<Future<Item = (), Error = ()> + 'static + Send>) -> Result<(), SpawnError>
@@ -94,6 +99,9 @@ impl BuiExecutor {
             }
             BuiExecutor::MyExecutor(ref mut x) => {
                 x.spawn(future)?;
+            }
+            BuiExecutor::SingleThread(ref mut x) => {
+                x.spawn(future);
             }
         };
         Ok(())
