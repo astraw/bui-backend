@@ -137,7 +137,9 @@ impl MyApp {
             });
 
         // Add our future into the event loop created by hyper.
-        executor.spawn(Box::new(callback_rx_future))?;
+        executor.spawn(Box::new(callback_rx_future)).map_err(|e| {
+            failure::err_msg(format!("spawn error: {:?}", e))
+        })?;
 
         // Return our app.
         Ok(MyApp { inner: inner })
