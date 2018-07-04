@@ -106,6 +106,24 @@ impl BuiExecutor {
         };
         Ok(())
     }
+
+    pub fn spawn_on_thread(&mut self, future: Box<Future<Item = (), Error = ()>>) -> Result<(), SpawnError>
+    {
+        match self {
+            BuiExecutor::Default => {
+                panic!("cannot spawn single-threaded with default executor");
+            }
+            BuiExecutor::MyExecutor(ref mut _x) => {
+                panic!("cannot spawn single-threaded with multi-threaded executor");
+            }
+            BuiExecutor::SingleThread(ref mut x) => {
+                x.spawn(future);
+            }
+        };
+        Ok(())
+    }
+
+
 }
 
 /// Factory function to create a new BUI application.
