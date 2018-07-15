@@ -236,7 +236,12 @@ impl BuiService {
         Box::new(fut)
     }
 
-    fn handle_req(&self, req: &hyper::Request<hyper::Body>, mut resp: http::response::Builder, session_key: &SessionKeyType) -> Result<http::Response<hyper::Body>, http::Error> {
+    fn handle_req(&self,
+        req: &hyper::Request<hyper::Body>,
+        mut resp: http::response::Builder,
+        session_key: &SessionKeyType)
+        -> Result<http::Response<hyper::Body>, http::Error>
+    {
         let resp_final = match (req.method(), req.uri().path()) {
             (&Method::GET, path) => {
 
