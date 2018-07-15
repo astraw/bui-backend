@@ -8,8 +8,13 @@ for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/
 
 ### Changed
 
-* use `tokio_core::reactor::Handle` passed in from caller, allowing
-  the caller to maintain the `tokio_core::reactor::Core`.
+* Update to tokio reform (`tokio` 0.1) from `tokio-core`, which entailed a
+  substantial rewrite.
+* Update to `hyper` 0.12.
+* Drop use of raii-change-tracker crate but use a derivative, now included
+  as `bui_backend::change_tracker`.
+* `walkdir` and `includedir_codegen` crates only used when the `bundle_files`
+  feature is used.
 
 ### Added
 

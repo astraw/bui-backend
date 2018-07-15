@@ -15,7 +15,7 @@ bui-backend-codegen = {version="0.1.1", default-features = false, path="codegen"
 futures = "0.1.11"
 includedir = "0.2.0"
 tokio-executor = "0.1"
-hyper = {version="0.12"}
+hyper = "0.12"
 rand = "0.4"
 log = "0.4"
 serde = "1.0"
