@@ -3,6 +3,7 @@ use {serde_json, std, futures, jsonwebtoken};
 #[cfg(feature = "bundle_files")]
 use includedir;
 use failure::Fail;
+use http;
 use hyper;
 
 use hyper::{Method, StatusCode};
@@ -235,6 +236,86 @@ impl BuiService {
         Box::new(fut)
     }
 
+    fn handle_req(&self, req: &hyper::Request<hyper::Body>, mut resp: http::response::Builder, session_key: &SessionKeyType) -> Result<http::Response<hyper::Body>, http::Error> {
+        let resp_final = match (req.method(), req.uri().path()) {
+            (&Method::GET, path) => {
+
+                let path = if path == "/" { "/index.html" } else { path };
+
+                if path.starts_with(&self.events_prefix) {
+
+                    // Quality value parsing disabled with the following hack
+                    // until this is addressed:
+                    // https://github.com/hyperium/http/issues/213
+
+                    let mut accepts_event_stream = false;
+                    for value in req.headers().get_all(ACCEPT).iter() {
+                        if value.to_str().expect("to_str()").contains("text/event-stream") {
+                            accepts_event_stream = true;
+                        }
+                    }
+
+                    if accepts_event_stream {
+                        let connection_key = self.get_next_connection_key();
+                        let (tx_event_stream, rx_event_stream) =
+                            mpsc::channel(self.config.channel_size);
+
+                        {
+                            let tx_new_conn = self.tx_new_connection.clone();
+                            let conn_info = NewEventStreamConnection {
+                                chunk_sender: tx_event_stream,
+                                session_key: *session_key,
+                                connection_key: connection_key,
+                                path: path.to_string(),
+                            };
+
+                            match tx_new_conn.send(conn_info).wait() {
+                                Ok(_tx) => {} // Cloned above, so don't need to keep _tx here.
+                                Err(e) => {
+                                    error!("failed to send new connection info: {:?}", e);
+                                    // should we panic here?
+                                }
+                            };
+                        }
+
+                        resp.header(
+                            hyper::header::CONTENT_TYPE,
+                            hyper::header::HeaderValue::from_str("text/event-stream").expect("from_str"));
+
+                        // resp.header(hyper::header::ContentType(mime::TEXT_EVENT_STREAM))
+                            // .with_body(rx_event_stream);
+                        resp.body( hyper::Body::wrap_stream( rx_event_stream.map_err(|_| Error::RxEvent.compat() ) ) )?
+                    } else {
+                        error!("Event request does specify 'Accept' or does \
+                            not accept the required 'text/event-stream'");
+                        resp.status(StatusCode::BAD_REQUEST);
+                        resp.body(hyper::Body::empty())?
+                    }
+                } else {
+                    // TODO read file asynchronously
+                    match self.get_file_content(path) {
+                        Some(buf) => {
+                            let len = buf.len();
+                            let body = hyper::Body::from(buf);
+                            resp.header(hyper::header::CONTENT_LENGTH,
+                                format!("{}",len).as_bytes());
+                            resp.body(body)?
+                        }
+                        None => {
+                            resp.status(StatusCode::NOT_FOUND);
+                            resp.body(hyper::Body::empty())?
+                        }
+                    }
+                }
+            }
+            _ => {
+                resp.status(StatusCode::NOT_FOUND);
+                resp.body(hyper::Body::empty())?
+            }
+        };
+        Ok(resp_final)
+    }
+
 }
 
 fn get_client_key(map: &hyper::HeaderMap<hyper::header::HeaderValue>,
@@ -326,87 +407,8 @@ impl hyper::service::Service for BuiService {
             session_key
         };
 
-        let resp_final = match (req.method(), req.uri().path()) {
-            (&Method::GET, path) => {
-
-                let path = if path == "/" { "/index.html" } else { path };
-
-                if path.starts_with(&self.events_prefix) {
-
-                    // Quality value parsing disabled with the following hack
-                    // until this is addressed:
-                    // https://github.com/hyperium/http/issues/213
-
-                    let mut accepts_event_stream = false;
-                    for value in req.headers().get_all(ACCEPT).iter() {
-                        if value.to_str().expect("to_str()").contains("text/event-stream") {
-                            accepts_event_stream = true;
-                        }
-                    }
-
-                    if accepts_event_stream {
-                        let connection_key = self.get_next_connection_key();
-                        let (tx_event_stream, rx_event_stream) =
-                            mpsc::channel(self.config.channel_size);
-
-                        {
-                            let tx_new_conn = self.tx_new_connection.clone();
-                            let conn_info = NewEventStreamConnection {
-                                chunk_sender: tx_event_stream,
-                                session_key: session_key,
-                                connection_key: connection_key,
-                                path: path.to_string(),
-                            };
-
-                            match tx_new_conn.send(conn_info).wait() {
-                                Ok(_tx) => {} // Cloned above, so don't need to keep _tx here.
-                                Err(e) => {
-                                    error!("failed to send new connection info: {:?}", e);
-                                    // should we panic here?
-                                }
-                            };
-                        }
-
-                        resp.header(
-                            hyper::header::CONTENT_TYPE,
-                            hyper::header::HeaderValue::from_str("text/event-stream").expect("from_str"));
-
-                        // resp.header(hyper::header::ContentType(mime::TEXT_EVENT_STREAM))
-                            // .with_body(rx_event_stream);
-                        resp.body( hyper::Body::wrap_stream( rx_event_stream.map_err(|_| Error::RxEvent.compat() ) ) )
-                        .expect("response") // todo map err
-                    } else {
-                        error!("Event request does specify 'Accept' or does \
-                            not accept the required 'text/event-stream'");
-                        resp.status(StatusCode::BAD_REQUEST);
-                        resp.body(hyper::Body::empty())
-                        .expect("response") // todo map err
-                    }
-                } else {
-                    // TODO read file asynchronously
-                    match self.get_file_content(path) {
-                        Some(buf) => {
-                            let len = buf.len();
-                            let body = hyper::Body::from(buf);
-                            resp.header(hyper::header::CONTENT_LENGTH,
-                                format!("{}",len).as_bytes());
-                            resp.body(body)
-                                .expect("response") // todo map err
-                        }
-                        None => {
-                            resp.status(StatusCode::NOT_FOUND);
-                            resp.body(hyper::Body::empty())
-                                .expect("response") // todo map err
-                        }
-                    }
-                }
-            }
-            _ => {
-                resp.status(StatusCode::NOT_FOUND);
-                resp.body(hyper::Body::empty())
-                .expect("response") // todo map err
-            }
-        };
+        let resp_final = self.handle_req(&req, resp, &session_key)
+            .expect("handle_req"); // todo map err
         Box::new(futures::future::ok(resp_final))
     }
 }
