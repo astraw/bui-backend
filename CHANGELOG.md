@@ -16,8 +16,8 @@ for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/
   as `bui_backend::change_tracker`. The new `ChangeTracker` type allows changing
   the owned value using closures and notifies listeners just after the closure
   completes.
-* `walkdir` and `includedir_codegen` crates only used when the `bundle_files`
-  feature is used.
+* `walkdir`, `includedir`, and `includedir_codegen` crates only used when the
+  `bundle_files` feature is used.
 
 ### Added
 
