@@ -16,6 +16,7 @@ extern crate dotenv;
 extern crate futures;
 extern crate tokio;
 extern crate tokio_timer;
+extern crate tokio_executor;
 extern crate bui_demo_data;
 
 use failure::Error;
@@ -23,8 +24,10 @@ use failure::Error;
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, Mutex};
 
+use tokio_executor::Executor;
+
 use change_tracker::DataTracker;
-use bui_backend::highlevel::{BuiAppInner, create_bui_app_inner, BuiExecutor};
+use bui_backend::highlevel::{BuiAppInner, create_bui_app_inner};
 
 use futures::{Future, Stream};
 use bui_demo_data::Shared;
@@ -72,7 +75,7 @@ fn jwt_secret(matches: &clap::ArgMatches, required: bool) -> Result<Vec<u8>,Erro
 
 impl MyApp {
     /// Create our app
-    fn new(mut executor: &mut BuiExecutor, secret: &[u8], addr: &std::net::SocketAddr, config: Config) -> Result<Self, Error> {
+    fn new(executor: &mut Executor, secret: &[u8], addr: &std::net::SocketAddr, config: Config) -> Result<Self, Error> {
 
         // Create our shared state.
         let shared_store = Arc::new(Mutex::new(DataTracker::new(Shared {
@@ -83,7 +86,7 @@ impl MyApp {
 
         // Create `inner`, which takes care of the browser communication details for us.
         let chan_size = 10;
-        let (_, mut inner) = create_bui_app_inner(&mut executor, Some(secret),
+        let (_, mut inner) = create_bui_app_inner(executor, Some(secret),
             shared_store, &addr, config, chan_size, "/events")?;
 
         // Make a clone of our shared state Arc which will be moved into our callback handler.
@@ -192,8 +195,7 @@ fn run() -> Result<(),Error> {
     let mut runtime = tokio::runtime::Runtime::new().expect("runtime");
 
     // Create our app.
-    let executor = runtime.executor();
-    let mut exec = BuiExecutor::from(Box::new(executor));
+    let mut exec = runtime.executor();
     let my_app = MyApp::new(&mut exec, &secret, &http_server_addr,
         config)?;
 

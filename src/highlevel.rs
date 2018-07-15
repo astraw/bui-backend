@@ -74,69 +74,8 @@ impl<T> BuiAppInner<T>
     }
 }
 
-pub enum BuiExecutor {
-    Default,
-    Executor(Box<dyn Executor>),
-    MultiThreaded(tokio::runtime::Runtime),
-    SingleThread(tokio::runtime::current_thread::Runtime),
-}
-
-impl BuiExecutor {
-
-    pub fn from(x: Box<dyn Executor>) -> Self {
-        BuiExecutor::Executor(x)
-    }
-
-    pub fn from_multi_threaded(x: tokio::runtime::Runtime) -> Self {
-        BuiExecutor::MultiThreaded(x)
-    }
-
-    pub fn from_single_thread(x: tokio::runtime::current_thread::Runtime) -> Self {
-        BuiExecutor::SingleThread(x)
-    }
-
-    pub fn spawn(&mut self, future: Box<Future<Item = (), Error = ()> + 'static + Send>) -> Result<(), SpawnError>
-    {
-        match self {
-            BuiExecutor::Default => {
-                DefaultExecutor::current()
-                    .spawn(future)?;
-            }
-            BuiExecutor::Executor(ref mut x) => {
-                x.spawn(future)?;
-            }
-            BuiExecutor::MultiThreaded(ref mut x) => {
-                x.spawn(future);
-            }
-            BuiExecutor::SingleThread(ref mut x) => {
-                x.spawn(future);
-            }
-        };
-        Ok(())
-    }
-
-    pub fn spawn_on_thread(&mut self, future: Box<Future<Item = (), Error = ()>>) -> Result<(), SpawnError>
-    {
-        match self {
-            BuiExecutor::Default => {
-                panic!("cannot spawn single-threaded with default executor");
-            }
-            BuiExecutor::Executor(ref mut _x) => {
-                panic!("cannot spawn single-threaded with executor");
-            }
-            BuiExecutor::MultiThreaded(ref mut _x) => {
-                panic!("cannot spawn single-threaded with multi-threaded executor");
-            }
-            BuiExecutor::SingleThread(ref mut x) => {
-                x.spawn(future);
-            }
-        };
-        Ok(())
-    }
-}
-
 /// Factory function to create a new BUI application.
-pub fn create_bui_app_inner<T>(my_executor: &mut BuiExecutor,
+pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
                                jwt_secret: Option<&[u8]>,
                                shared_arc: Arc<Mutex<DataTracker<T>>>,
                                addr: &SocketAddr,

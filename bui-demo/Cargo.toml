@@ -22,6 +22,7 @@ dotenv = "0.10"
 futures = "0.1"
 tokio = "0.1"
 tokio-timer = "0.2"
+tokio-executor = "0.1"
 bui-demo-data = {path="bui-demo-data"}
 
 [build-dependencies]
