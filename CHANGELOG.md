@@ -8,11 +8,14 @@ for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/
 
 ### Changed
 
-* Update to tokio reform (`tokio` 0.1) from `tokio-core`, which entailed a
-  substantial rewrite.
+* Update to tokio reform (`tokio` 0.1) from `tokio-core`. This is associated
+  with and API change in which an external tokio Executor is passed in to
+  `create_bui_app_inner()` on which all tasks are spawned.
 * Update to `hyper` 0.12.
 * Drop use of raii-change-tracker crate but use a derivative, now included
-  as `bui_backend::change_tracker`.
+  as `bui_backend::change_tracker`. The new `ChangeTracker` type allows changing
+  the owned value using closures and notifies listeners just after the closure
+  completes.
 * `walkdir` and `includedir_codegen` crates only used when the `bundle_files`
   feature is used.
 
