@@ -13,7 +13,7 @@ categories = ["gui", "web-programming::http-server"]
 [dependencies]
 bui-backend-codegen = {version="0.1.4", default-features = false, path="codegen"}
 futures = "0.1.11"
-includedir = "0.2.0"
+includedir = {version="0.4", optional=true}
 tokio-executor = "0.1"
 http = "0.1"
 hyper = "0.12"
@@ -32,7 +32,7 @@ tokio-timer = "0.2"
 
 [features]
 default = ["bundle_files"]
-bundle_files = ["bui-backend-codegen/bundle_files"]
+bundle_files = ["bui-backend-codegen/bundle_files", "includedir"]
 serve_files = ["bui-backend-codegen/serve_files"]
 
 [workspace]

@@ -10,7 +10,7 @@ license = "MIT/Apache-2.0"
 bui-backend = {version="0.7", default-features = false, path=".."}
 log = "0.4"
 env_logger = "0.5"
-includedir = "0.2.0"
+includedir = {version="0.4", optional=true}
 phf = "0.7.12"
 serde = "1.0"
 serde_json = "1.0"
@@ -31,7 +31,7 @@ bui-backend-codegen = {version = "0.1.4", default-features = false, path="../cod
 default = ["bundle_files", "frontend_js"]
 
 # Bundle files into executable
-bundle_files = ["bui-backend/bundle_files", "bui-backend-codegen/bundle_files"]
+bundle_files = ["bui-backend/bundle_files", "bui-backend-codegen/bundle_files", "includedir"]
 # Serve files from disk at runtime
 serve_files = ["bui-backend/serve_files", "bui-backend-codegen/serve_files"]
 
