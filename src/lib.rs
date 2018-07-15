@@ -51,7 +51,6 @@ extern crate serde_derive;
 
 #[macro_use]
 extern crate log;
-extern crate change_tracker;
 #[cfg(feature = "bundle_files")]
 extern crate includedir;
 extern crate serde;
@@ -68,5 +67,6 @@ extern crate failure_derive;
 mod errors;
 pub use errors::Error;
 
+pub mod change_tracker;
 pub mod lowlevel;
 pub mod highlevel;

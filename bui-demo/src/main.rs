@@ -3,7 +3,6 @@ extern crate failure;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
-extern crate change_tracker;
 extern crate bui_backend;
 #[cfg(feature = "bundle_files")]
 extern crate includedir;
@@ -26,7 +25,7 @@ use std::sync::{Arc, Mutex};
 
 use tokio_executor::Executor;
 
-use change_tracker::ChangeTracker;
+use bui_backend::change_tracker::ChangeTracker;
 use bui_backend::highlevel::{BuiAppInner, create_bui_app_inner};
 
 use futures::{Future, Stream};
