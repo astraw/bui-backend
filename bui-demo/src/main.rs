@@ -26,7 +26,7 @@ use std::sync::{Arc, Mutex};
 
 use tokio_executor::Executor;
 
-use change_tracker::DataTracker;
+use change_tracker::ChangeTracker;
 use bui_backend::highlevel::{BuiAppInner, create_bui_app_inner};
 
 use futures::{Future, Stream};
@@ -78,7 +78,7 @@ impl MyApp {
     fn new(executor: &mut Executor, secret: &[u8], addr: &std::net::SocketAddr, config: Config) -> Result<Self, Error> {
 
         // Create our shared state.
-        let shared_store = Arc::new(Mutex::new(DataTracker::new(Shared {
+        let shared_store = Arc::new(Mutex::new(ChangeTracker::new(Shared {
                                                 is_recording: false,
                                                 counter: 0,
                                                 name: "".into(),

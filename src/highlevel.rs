@@ -5,7 +5,7 @@ use lowlevel::{BuiService, ConnectionKeyType, SessionKeyType, EventChunkSender,
                CallbackDataAndSession, Config, launcher};
 use {std, hyper, serde, serde_json, futures};
 
-use change_tracker::DataTracker;
+use change_tracker::ChangeTracker;
 
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
@@ -48,7 +48,7 @@ pub struct ConnectionEvent {
 pub struct BuiAppInner<T>
     where T: Clone + PartialEq + Serialize + Send
 {
-    i_shared_arc: Arc<Mutex<DataTracker<T>>>,
+    i_shared_arc: Arc<Mutex<ChangeTracker<T>>>,
     i_txers: Arc<Mutex<HashMap<ConnectionKeyType, (SessionKeyType, EventChunkSender, String)>>>,
     i_bui_server: BuiService,
 }
@@ -57,7 +57,7 @@ impl<T> BuiAppInner<T>
     where T: Clone + PartialEq + Serialize + Send + 'static
 {
     /// Get reference counted reference to the underlying data store.
-    pub fn shared_arc(&self) -> &Arc<Mutex<DataTracker<T>>> {
+    pub fn shared_arc(&self) -> &Arc<Mutex<ChangeTracker<T>>> {
         &self.i_shared_arc
     }
 
@@ -77,7 +77,7 @@ impl<T> BuiAppInner<T>
 /// Factory function to create a new BUI application.
 pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
                                jwt_secret: Option<&[u8]>,
-                               shared_arc: Arc<Mutex<DataTracker<T>>>,
+                               shared_arc: Arc<Mutex<ChangeTracker<T>>>,
                                addr: &SocketAddr,
                                config: Config,
                                chan_size: usize,

@@ -17,7 +17,7 @@ includedir = "0.2.0"
 tokio-executor = "0.1"
 hyper = {version="0.12", default-features = false}
 rand = "0.4"
-change-tracker = {git="https://bare-git.strawlab.org/change-tracker.git", rev="f217c1fe803ca94f4a06eed0d7eae9b229fc1f2b"}
+change-tracker = {git="https://bare-git.strawlab.org/change-tracker.git", rev="f1a2f1653a4500bc9bd962e37fee59149a82f8cf"}
 log = "0.4"
 serde = "1.0"
 serde_derive = "1.0"
