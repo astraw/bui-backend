@@ -24,7 +24,7 @@ JSON.
 
 #### Features
 
- - Uses [raii-change-tracker](https://crates.io/crates/raii-change-tracker) to
+ - Uses the `bui_backend::change_tracker::ChangeTracker` type to
    ensure that server state changes are reactively sent to all connected
    frontends.
  - To keep things simple, server state is shared with all connected clients.
@@ -50,9 +50,9 @@ JSON.
  - Add example with user login.
  - Implement more sophisticated state-sharing allowing partial views and
    minimal updates.
- - When [`ReadableStream`](https://caniuse.com/#search=ReadableStream) is more
-   widely supported, use it (instead of [`Server Sent
-   Events`](https://caniuse.com/#search=EventSource)).
+ - Use
+   [`ReadableStream`](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream)
+   instead of [`Server Sent Events`](https://caniuse.com/#search=EventSource).
  - Your idea here.
 
 #### Security warning
