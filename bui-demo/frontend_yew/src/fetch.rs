@@ -7,7 +7,7 @@ use stdweb::Value;
 use stdweb::unstable::TryFrom;
 
 use yew::format::{Storable, Restorable};
-use yew::html::Callback;
+use yew::callback::Callback;
 use yew::services::Task;
 
 pub use http::{

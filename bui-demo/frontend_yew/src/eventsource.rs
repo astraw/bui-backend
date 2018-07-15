@@ -1,6 +1,6 @@
 use stdweb::Value;
 use yew::format::Restorable;
-use yew::html::Callback;
+use yew::callback::Callback;
 use yew::services::Task;
 
 #[derive(Debug)]

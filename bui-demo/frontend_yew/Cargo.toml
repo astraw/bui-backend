@@ -4,7 +4,7 @@ version = "0.3.0"
 authors = ["Andrew Straw <strawman@astraw.com>"]
 
 [dependencies]
-yew = {git="https://github.com/DenisKolodin/yew", rev="42697dcc464b5f4b5746ec0c137271244c4fe4ca"}
+yew = "0.3"
 stdweb = "0.4"
 serde = "1"
 serde_derive = "1"
