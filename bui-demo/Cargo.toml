@@ -25,7 +25,7 @@ tokio-executor = "0.1"
 bui-demo-data = {path="bui-demo-data"}
 
 [build-dependencies]
-bui-backend-codegen = {version = "0.1", default-features = false, path="../codegen"}
+bui-backend-codegen = {version = "0.1.4", default-features = false, path="../codegen"}
 
 [features]
 default = ["bundle_files", "frontend_js"]
