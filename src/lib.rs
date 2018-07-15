@@ -57,7 +57,6 @@ extern crate includedir;
 extern crate serde;
 extern crate serde_json;
 extern crate futures;
-extern crate tokio;
 extern crate tokio_executor;
 extern crate hyper;
 extern crate jsonwebtoken;

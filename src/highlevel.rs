@@ -3,7 +3,7 @@
 //! The API in this module is likely to change as ergonomics get better.
 use lowlevel::{BuiService, ConnectionKeyType, SessionKeyType, EventChunkSender,
                CallbackDataAndSession, Config, launcher};
-use {std, hyper, serde, serde_json, futures, tokio};
+use {std, hyper, serde, serde_json, futures};
 
 use change_tracker::DataTracker;
 
@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use futures::{Future, Sink, Stream};
 use futures::sync::mpsc;
-use tokio_executor::{Executor, DefaultExecutor, SpawnError};
+use tokio_executor::Executor;
 
 use serde::Serialize;
 
