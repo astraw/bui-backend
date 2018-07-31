@@ -4,7 +4,7 @@ version = "0.3.0"
 authors = ["Andrew Straw <strawman@astraw.com>"]
 
 [dependencies]
-yew = "0.3"
+yew = "0.4"
 stdweb = "0.4"
 serde = "1"
 serde_derive = "1"

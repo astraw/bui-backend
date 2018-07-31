@@ -14,7 +14,6 @@ extern crate http;
 
 use bui_demo_data::Shared;
 use yew::prelude::*;
-use yew::format::Json;
 use yew::services::Task;
 
 // Services we have defined as modules.
@@ -46,6 +45,7 @@ pub enum EventSourceAction {
 enum Msg {
     EventSourceAction(EventSourceAction),
     EsReady(Result<Shared, failure::Error>),
+    // EsReady(String),
     UpdateName(String),
     SendName,
     ToggleRecording,
@@ -54,10 +54,10 @@ enum Msg {
 }
 
 impl Component<Context> for Model {
-    type Msg = Msg;
+    type Message = Msg;
     type Properties = ();
 
-    fn create(_: Self::Properties, context: &mut Env<Context, Self>) -> Self {
+    fn create(_: Self::Properties, env: &mut Env<Context, Self>) -> Self {
         let mut result = Self {
             shared: None,
             es: None,
@@ -67,26 +67,28 @@ impl Component<Context> for Model {
         };
         // trigger connection on creation
         let msg = Msg::EventSourceAction(EventSourceAction::Connect);
-        result.update(msg,context);
+        result.update(msg,env);
         result
     }
 
-    fn update(&mut self, msg: Self::Msg, context: &mut Env<Context, Self>) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message, env: &mut Env<Context, Self>) -> ShouldRender {
         match msg {
             Msg::EventSourceAction(action) => {
                 match action {
                     EventSourceAction::Connect => {
-                        let callback = context.send_back(|Json(data): Json<Result<Shared, failure::Error>>| {
-                            Msg::EsReady(data)
+                        // let callback = env.send_back(|data: String| {
+                        let callback = env.send_back(move |buf: String| {
+                            let parsed = serde_json::from_str(&buf).map_err(|e| e.into());
+                            Msg::EsReady(parsed)
                         });
-                        let notification = context.send_back(|status: ReadyState| {
+                        let notification = env.send_back(|status: ReadyState| {
                             match status {
                                 ReadyState::Connecting => Msg::UpdateConnectionState(status),
                                 ReadyState::Open => Msg::UpdateConnectionState(status),
                                 ReadyState::Closed => Msg::EventSourceAction(EventSourceAction::Lost(status)),
                             }
                         });
-                        let task = context.es.connect("events", "bui_backend", callback, notification);
+                        let task = env.es.connect("events", "bui_backend", callback, notification);
                         self.es = Some(task);
                     }
                     EventSourceAction::Disconnect => {
@@ -102,6 +104,7 @@ impl Component<Context> for Model {
                 self.connection_state = status;
             }
             Msg::EsReady(response) => {
+                // self.shared = Some(response);
                 match response {
                     Ok(data_result) => {
                         self.shared = Some(data_result);
@@ -117,7 +120,7 @@ impl Component<Context> for Model {
             }
             Msg::SendName => {
                 let name = self.local_name.clone();
-                self.send_message("set_name", serde_json::value::to_value(name).unwrap(), context);
+                self.send_message("set_name", serde_json::value::to_value(name).unwrap(), env);
                 return false; // don't update DOM, do that on return
             }
             Msg::ToggleRecording => {
@@ -127,7 +130,7 @@ impl Component<Context> for Model {
                     false
                 };
                 self.send_message("set_is_recording",
-                    serde_json::value::to_value(new_value).unwrap(), context);
+                    serde_json::value::to_value(new_value).unwrap(), env);
                 return false; // don't update DOM, do that on return
             }
             Msg::Ignore => {
@@ -176,25 +179,26 @@ impl Model {
         html! {
             <input placeholder="name",
                    value=&self.local_name,
-                   oninput=|e: InputData| Msg::UpdateName(e.value),
-                   onblur=move|_| Msg::SendName,
-                   onkeypress=|e: KeyData| {
-                       if e.key == "Enter" { Msg::SendName } else { Msg::Ignore }
-                   }, />
+                   oninput=|e| Msg::UpdateName(e.value),
+                   onblur=|_| Msg::SendName,
+                   onkeypress=|e| {
+                       if e.key() == "Enter" { Msg::SendName } else { Msg::Ignore }
+                   },
+                />
         }
     }
 
-    fn send_message(&mut self, name: &str, args: serde_json::Value, context: &mut Env<Context, Self>) {
+    fn send_message(&mut self, name: &str, args: serde_json::Value, env: &mut Env<Context, Self>) {
         let data = json!({
             "name": name,
             "args": args,
         });
-        let buf = serde_json::to_string(&data).unwrap();
+        let buf = serde_json::to_string(&data).map_err(|e| e.into());
         let post_request = Request::post("callback")
                 .header("Content-Type", "application/json;charset=UTF-8")
                 .body(buf)
                 .expect("Failed to build request.");
-        let callback = context.send_back(|resp: Response<Result<String,failure::Error>>| {
+        let callback = env.send_back(|resp: Response<Result<String,failure::Error>>| {
             match resp.body() {
                 &Ok(ref _s) => {}
                 &Err(ref e) => {
@@ -204,18 +208,18 @@ impl Model {
             }
             Msg::Ignore
         });
-        let task = context.web.fetch(post_request, callback, Some(&Credentials::SameOrigin));
+        let task = env.web.fetch(post_request, callback, Some(&Credentials::SameOrigin));
         self.ft = Some(task);
     }
 }
 
 fn main() {
     yew::initialize();
-    let context = Context {
+    let env = Context {
         es: EventSourceService::new(),
         web: FetchService::new(),
     };
-    let app: App<Context, Model> = App::new(context);
+    let app: App<_, Model> = App::new(env);
     app.mount_to_body();;
     yew::run_loop();
 }
