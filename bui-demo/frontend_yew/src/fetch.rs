@@ -1,23 +1,19 @@
 //! Service to send HTTP-request to a server.
-// This file modified from version within the yew source code.
+//! Modified from the version in the yew source to add
+//! Credentials see original file src/services/fetch.rs
+//! in commit f392d7ef8b4445f7acad880bc769803aa655cfea.
 
 use std::collections::HashMap;
 
-use stdweb::Value;
-use stdweb::unstable::TryFrom;
+use stdweb::{Value, JsSerialize};
+use stdweb::web::ArrayBuffer;
+use stdweb::unstable::{TryInto, TryFrom};
 
-use yew::format::{Storable, Restorable};
 use yew::callback::Callback;
 use yew::services::Task;
+use yew::format::{Format, Text, Binary};
 
-pub use http::{
-    HeaderMap,
-    Method,
-    Request,
-    Response,
-    StatusCode,
-    Uri
-};
+pub use http::{HeaderMap, Method, Request, Response, StatusCode, Uri};
 
 /// Represents errors of a fetch service.
 #[derive(Debug, Fail)]
@@ -46,13 +42,13 @@ impl<'a> From<&'a Credentials> for &'a str {
 }
 
 /// A service to fetch resources.
-pub struct FetchService {
-}
+#[derive(Default)]
+pub struct FetchService {}
 
 impl FetchService {
     /// Creates a new service instance connected to `App` by provided `sender`.
     pub fn new() -> Self {
-        Self { }
+        Self {}
     }
 
     /// Sends a request to a remote server given a Request object and a callback
@@ -103,107 +99,157 @@ impl FetchService {
     ///         }
     /// ```
     ///
-
-    pub fn fetch<IN, OUT: 'static>(&mut self, request: Request<IN>, callback: Callback<Response<OUT>>, credentials: Option<&Credentials>) -> FetchTask
+    pub fn fetch<IN, OUT: 'static>(
+        &mut self,
+        request: Request<IN>,
+        callback: Callback<Response<OUT>>,
+        credentials: Option<&Credentials>,
+    ) -> FetchTask
     where
-        IN: Into<Storable>,
-        OUT: From<Restorable>,
+        IN: Into<Text>,
+        OUT: From<Text>,
     {
-        // Consume request as parts and body.
-        let (parts, body) = request.into_parts();
-
-        // Map headers into a Js serializable HashMap.
-        let header_map: HashMap<&str, &str> = parts.headers.iter().map(
-            |(k, v)| (k.as_str(), v.to_str().expect(
-                format!("Unparsable request header {}: {:?}", k.as_str(), v).as_str()
-            ))
-        ).collect();
-
-        // Formats URI.
-        let uri = format!("{}", parts.uri);
-
-        // Prepare the response callback.
-        // Notice that the callback signature must match the call from the javascript
-        // side. There is no static check at this point.
-        let callback = move |success: bool, response: Value, body: String| {
-            let mut response_builder = Response::builder();
-
-            // Deserialize response status.
-            let status = u16::try_from(js!{
-                return @{&response}.status;
-            });
-
-            if let Ok(code) = status {
-                response_builder.status(code);
-            }
-
-            // Deserialize response headers.
-            let headers: HashMap<String, String> = HashMap::try_from(js!{
-                var map = {};
-                @{&response}.headers.forEach(function(value, key) {
-                    map[key] = value;
-                });
-                return map;
-            }).unwrap_or(HashMap::new());
-
-            for (key, values) in &headers {
-                response_builder.header(key.as_str(), values.as_str());
-            }
-
-            // Deserialize and wrap response body into a Restorable object.
-            let data = if success { Ok(body) } else { Err(FetchError::FailedResponse.into()) };
-            let out = OUT::from(data);
-            let response = response_builder.body(out).unwrap();
-            callback.emit(response);
-        };
-
-        type StrRef<'a> = &'a str;
-        let handle = js! {
-            var data = {
-                method: @{parts.method.as_str()},
-                body: @{body.into()},
-                headers: @{header_map},
-            };
-            if @{credentials.is_some()} {
-                data.credentials = @{StrRef::from(credentials.unwrap())};
-            }
-            var request = new Request(@{uri}, data);
-            var callback = @{callback};
-            var handle = {
-                interrupt: false,
-                callback,
-            };
-            fetch(request).then(function(response) {
-                response.text().then(function(data) {
-                    if (handle.interrupted != true) {
-                        callback(true, response, data);
-                        callback.drop();
-                    }
-                }).catch(function(err) {
-                    if (handle.interrupted != true) {
-                        callback(false, response, data);
-                        callback.drop();
-                    }
-                });
-            });
-            return handle;
-        };
-        FetchTask(Some(handle))
+        fetch_impl::<IN, OUT, String, String>(false, request, callback, credentials)
     }
+
+    /// Fetch the data in binary format.
+    pub fn fetch_binary<IN, OUT: 'static>(
+        &mut self,
+        request: Request<IN>,
+        callback: Callback<Response<OUT>>,
+        credentials: Option<&Credentials>,
+    ) -> FetchTask
+    where
+        IN: Into<Binary>,
+        OUT: From<Binary>,
+    {
+        fetch_impl::<IN, OUT, Vec<u8>, ArrayBuffer>(true, request, callback, credentials)
+    }
+}
+
+fn fetch_impl<IN, OUT: 'static, T, X>(
+    binary: bool,
+    request: Request<IN>,
+    callback: Callback<Response<OUT>>,
+    credentials: Option<&Credentials>,
+) -> FetchTask
+where
+    IN: Into<Format<T>>,
+    OUT: From<Format<T>>,
+    T: JsSerialize,
+    X: TryFrom<Value> + Into<T>,
+{
+    // Consume request as parts and body.
+    let (parts, body) = request.into_parts();
+
+    // Map headers into a Js serializable HashMap.
+    let header_map: HashMap<&str, &str> = parts
+        .headers
+        .iter()
+        .map(|(k, v)| {
+            (
+                k.as_str(),
+                v.to_str().expect(
+                    format!("Unparsable request header {}: {:?}", k.as_str(), v).as_str(),
+                ),
+            )
+        })
+        .collect();
+
+    // Formats URI.
+    let uri = format!("{}", parts.uri);
+    let method = parts.method.as_str();
+    let body = body.into().ok();
+
+    // Prepare the response callback.
+    // Notice that the callback signature must match the call from the javascript
+    // side. There is no static check at this point.
+    let callback = move |success: bool, status: u16, headers: HashMap<String, String>, data: X| {
+        let mut response_builder = Response::builder();
+        response_builder.status(status);
+        for (key, values) in &headers {
+            response_builder.header(key.as_str(), values.as_str());
+        }
+
+        // Deserialize and wrap response data into a Text object.
+        let data = if success {
+            Ok(data.into())
+        } else {
+            Err(FetchError::FailedResponse.into())
+        };
+        let out = OUT::from(data);
+        let response = response_builder.body(out).unwrap();
+        callback.emit(response);
+    };
+
+    type StrRef<'a> = &'a str;
+    let handle = js! {
+        var body = @{body};
+        if (@{binary} && body != null) {
+            body = Uint8Array.from(body);
+        }
+        var data = {
+            method: @{method},
+            body: body,
+            headers: @{header_map},
+        };
+        if @{credentials.is_some()} {
+            data.credentials = @{StrRef::from(credentials.unwrap())};
+        }
+        var request = new Request(@{uri}, data);
+        var callback = @{callback};
+        var handle = {
+            active: true,
+            callback,
+        };
+        fetch(request).then(function(response) {
+            var promise = (@{binary}) ? response.arrayBuffer() : response.text();
+            var status = response.status;
+            var headers = {};
+            response.headers.forEach(function(value, key) {
+                headers[key] = value;
+            });
+            promise.then(function(data) {
+                if (handle.active == true) {
+                    handle.active = false;
+                    callback(true, status, headers, data);
+                    callback.drop();
+                }
+            }).catch(function(err) {
+                if (handle.active == true) {
+                    handle.active = false;
+                    callback(false, status, headers, data);
+                    callback.drop();
+                }
+            });
+        });
+        return handle;
+    };
+    FetchTask(Some(handle))
 }
 
 impl Task for FetchTask {
     fn is_active(&self) -> bool {
-        self.0.is_some()
+        if let Some(ref task) = self.0 {
+            let result = js! {
+                var the_task = @{task};
+                return the_task.active;
+            };
+            result.try_into().unwrap_or(false)
+        } else {
+            false
+        }
     }
     fn cancel(&mut self) {
         // Fetch API doesn't support request cancelling
         // and we should use this workaround with a flag.
         // In fact, request not canceled, but callback won't be called.
-        let handle = self.0.take().expect("tried to cancel request fetching twice");
+        let handle = self.0
+            .take()
+            .expect("tried to cancel request fetching twice");
         js! {  @(no_return)
             var handle = @{handle};
-            handle.interrupted = true;
+            handle.active = false;
             handle.callback.drop();
         }
     }
