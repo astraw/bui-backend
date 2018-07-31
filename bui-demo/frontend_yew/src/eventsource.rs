@@ -1,5 +1,4 @@
 use stdweb::Value;
-use yew::format::Restorable;
 use yew::callback::Callback;
 use yew::services::Task;
 
@@ -26,14 +25,10 @@ impl EventSourceService {
 
     /// Connects to a server by an event source connection. Needs two functions to generate
     /// data and notification messages.
-    pub fn connect<OUT: 'static>(&mut self, url: &str, event_name: &str, callback: Callback<OUT>, notification: Callback<ReadyState>) -> EventSourceTask
-    where
-        OUT: From<Restorable>,
+    pub fn connect(&mut self, url: &str, event_name: &str, callback: Callback<String>, notification: Callback<ReadyState>) -> EventSourceTask
     {
-        let callback = move |s: String| {
-            let data = Ok(s);
-            let out = OUT::from(data);
-            callback.emit(out);
+        let data_callback = move |s: String| {
+            callback.emit(s);
         };
         let notify_callback = move |code: u32| {
             let code = {
@@ -48,7 +43,7 @@ impl EventSourceService {
         };
         let handle = js! {
             var source = new EventSource(@{url});
-            var callback = @{callback};
+            var data_callback = @{data_callback};
             var notify_callback = @{notify_callback};
             source.addEventListener("open", function (event) {
                 notify_callback(source.readyState);
@@ -57,7 +52,7 @@ impl EventSourceService {
                 notify_callback(source.readyState);
             });
             source.addEventListener(@{event_name}, function (event) {
-                callback(event.data);
+                data_callback(event.data);
             });
             return {
                 source,
