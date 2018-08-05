@@ -3,6 +3,7 @@ extern crate failure;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
+extern crate parking_lot;
 extern crate bui_backend;
 #[cfg(feature = "bundle_files")]
 extern crate includedir;
@@ -21,8 +22,9 @@ extern crate bui_demo_data;
 use failure::Error;
 
 use std::net::ToSocketAddrs;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
+use parking_lot::Mutex;
 use tokio_executor::Executor;
 
 use bui_backend::change_tracker::ChangeTracker;
@@ -101,7 +103,7 @@ impl MyApp {
 
                 // Get access to our shared state so we can modify it based on
                 // the browser's callback.
-                let mut shared = tracker_arc2.lock().unwrap();
+                let mut shared = tracker_arc2.lock();
 
                 // All callbacks have the `name` field.
                 match msg.name.as_ref() {
@@ -209,7 +211,7 @@ fn run() -> Result<(),Error> {
         .for_each(move |_| {
                     // This closure is called once a second. Update a counter
                     // in our shared data store.
-                    let mut shared_store = tracker_arc.lock().unwrap();
+                    let mut shared_store = tracker_arc.lock();
                     shared_store.modify(|shared| {
                         shared.counter += 1;
                     });
