@@ -24,7 +24,7 @@ use failure::Error;
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
 
-use parking_lot::Mutex;
+use parking_lot::RwLock;
 use tokio_executor::Executor;
 
 use bui_backend::change_tracker::ChangeTracker;
@@ -79,7 +79,7 @@ impl MyApp {
     fn new(executor: &mut Executor, secret: &[u8], addr: &std::net::SocketAddr, config: Config) -> Result<Self, Error> {
 
         // Create our shared state.
-        let shared_store = Arc::new(Mutex::new(ChangeTracker::new(Shared {
+        let shared_store = Arc::new(RwLock::new(ChangeTracker::new(Shared {
                                                 is_recording: false,
                                                 counter: 0,
                                                 name: "".into(),
@@ -103,7 +103,7 @@ impl MyApp {
 
                 // Get access to our shared state so we can modify it based on
                 // the browser's callback.
-                let mut shared = tracker_arc2.lock();
+                let mut shared = tracker_arc2.write();
 
                 // All callbacks have the `name` field.
                 match msg.name.as_ref() {
@@ -211,7 +211,7 @@ fn run() -> Result<(),Error> {
         .for_each(move |_| {
                     // This closure is called once a second. Update a counter
                     // in our shared data store.
-                    let mut shared_store = tracker_arc.lock();
+                    let mut shared_store = tracker_arc.write();
                     shared_store.modify(|shared| {
                         shared.counter += 1;
                     });

@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
-use parking_lot::Mutex;
+use parking_lot::RwLock;
 use futures::{Future, Sink, Stream};
 use futures::sync::mpsc;
 use tokio_executor::Executor;
@@ -50,8 +50,8 @@ pub struct ConnectionEvent {
 pub struct BuiAppInner<T>
     where T: Clone + PartialEq + Serialize + Send
 {
-    i_shared_arc: Arc<Mutex<ChangeTracker<T>>>,
-    i_txers: Arc<Mutex<HashMap<ConnectionKeyType, (SessionKeyType, EventChunkSender, String)>>>,
+    i_shared_arc: Arc<RwLock<ChangeTracker<T>>>,
+    i_txers: Arc<RwLock<HashMap<ConnectionKeyType, (SessionKeyType, EventChunkSender, String)>>>,
     i_bui_server: BuiService,
 }
 
@@ -59,7 +59,7 @@ impl<T> BuiAppInner<T>
     where T: Clone + PartialEq + Serialize + Send + 'static
 {
     /// Get reference counted reference to the underlying data store.
-    pub fn shared_arc(&self) -> &Arc<Mutex<ChangeTracker<T>>> {
+    pub fn shared_arc(&self) -> &Arc<RwLock<ChangeTracker<T>>> {
         &self.i_shared_arc
     }
 
@@ -79,13 +79,13 @@ impl<T> BuiAppInner<T>
 /// Factory function to create a new BUI application.
 pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
                                jwt_secret: Option<&[u8]>,
-                               shared_arc: Arc<Mutex<ChangeTracker<T>>>,
+                               shared_arc: Arc<RwLock<ChangeTracker<T>>>,
                                addr: &SocketAddr,
                                config: Config,
                                chan_size: usize,
                                events_prefix: &str)
                                -> Result<(mpsc::Receiver<ConnectionEvent>, BuiAppInner<T>), Error>
-    where T: Clone + PartialEq + Serialize + 'static + Send,
+    where T: Clone + PartialEq + Serialize + 'static + Send + Sync,
 {
     let (rx_conn, bui_server) = launcher(config, jwt_secret, chan_size, events_prefix);
 
@@ -102,7 +102,7 @@ pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
 
     let inner = BuiAppInner {
         i_shared_arc: shared_arc,
-        i_txers: Arc::new(Mutex::new(HashMap::new())),
+        i_txers: Arc::new(RwLock::new(HashMap::new())),
         i_bui_server: bui_server,
     };
 
@@ -120,7 +120,7 @@ pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
 
         // send current value on initial connect
         let hc: hyper::Chunk = {
-            let shared = shared_arc.lock();
+            let shared = shared_arc.write();
             create_event_source_msg(&shared.as_ref()).into()
         };
 
@@ -145,7 +145,7 @@ pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
         // TODO: get rid of wait here?
         match chunk_sender.send(hc).wait() {
             Ok(chunk_sender) => {
-                let mut txer_guard = txers2.lock();
+                let mut txer_guard = txers2.write();
                 txer_guard.insert(connection_key, (ckey, chunk_sender, conn_info.path));
                 futures::future::ok(())
             }
@@ -165,13 +165,13 @@ pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
     // Create a Stream to handle updates to our shared store.
     let change_listener = {
         let rx = {
-            let mut shared = shared_store2.lock();
+            let mut shared = shared_store2.write();
             shared.get_changes()
         };
         let rx = rx.for_each(move |x| {
             let (_old, new_value) = x;
             {
-                let mut sources = txers.lock();
+                let mut sources = txers.write();
                 let mut restore = vec![];
 
                 let event_source_msg = create_event_source_msg(&new_value);
