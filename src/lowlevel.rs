@@ -36,18 +36,15 @@ struct JwtClaims {
 /// Callback data from a connected client.
 #[derive(Clone, Debug)]
 pub struct CallbackDataAndSession {
-    /// The name of the callback sent from the client.
-    pub name: String,
-    /// The arguments of the callback sent from the client.
-    pub args: serde_json::Value,
+    /// The callback data sent from the client.
+    pub payload: serde_json::Value,
     /// The session key associated with the client.
     pub session_key: SessionKeyType,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 struct WireCallbackData {
-    name: String,
-    args: serde_json::Value,
+    payload: serde_json::Value,
 }
 
 /// Configuration settings for `BuiService`.
@@ -189,27 +186,34 @@ impl BuiService {
         // parse data
         let fut = all_chunks_future
             .and_then(move |data: Vec<u8>| {
-                match serde_json::from_slice::<WireCallbackData>(&data) {
-                    Ok(data) => {
+                match serde_json::from_slice::<serde_json::Value>(&data) {
+                    Ok(payload) => {
                         {
                             // valid data, parse it
                             let mut cb_tx_vec = cbsenders.lock().unwrap();
                             let mut restore_tx = Vec::new();
 
-                            let cmd_name = data.name.clone();
                             let args = CallbackDataAndSession {
-                                name: data.name,
-                                args: data.args,
-                                session_key: session_key,
+                                payload,
+                                session_key,
                             };
+
+                            // Send the payload to all callback listeners.
+
+                            // TODO convert once from json payload into
+                            // type specified by caller rather than
+                            // forcing each caller to do it.
+
+                            // TODO return an http error such as
+                            // StatusCode::BAD_REQUEST if callback fails.
+
                             for tx in cb_tx_vec.drain(..) {
                                 // TODO can we somehow do this without waiting?
                                 match tx.send(args.clone()).wait() {
                                     Ok(t) => restore_tx.push(t),
                                     Err(e) => {
                                         // listener failed
-                                        warn!("when sending callback {:?}, error: {:?}",
-                                                cmd_name,
+                                        warn!("error when sending: {:?}",
                                                 e);
                                     }
                                 };
@@ -221,12 +225,14 @@ impl BuiService {
 
                         }
                         let resp = Response::builder()
+                            .header(hyper::header::CONTENT_TYPE, "text/plain")
                             .body(hyper::Body::empty()).expect("response");
                         futures::future::ok(resp)
                     }
                     Err(e) => {
-                        error!("Failed parsing JSON to WireCallbackData: {:?}", e);
+                        error!("Failed parsing JSON: {}", e);
                         let resp = Response::builder()
+                            .header(hyper::header::CONTENT_TYPE, "text/plain")
                             .status(StatusCode::BAD_REQUEST)
                             .body(hyper::Body::empty()).expect("response");
                         futures::future::ok(resp)
@@ -378,7 +384,7 @@ impl hyper::service::Service for BuiService {
                 } else {
                     error!("no client key in callback");
                     let resp = Response::builder()
-                        // .header(hyper::header::CONTENT_TYPE, "text/plain")
+                        .header(hyper::header::CONTENT_TYPE, "text/plain")
                         .status(StatusCode::BAD_REQUEST)
                         .body(hyper::Body::empty()).expect("response");
                     return Box::new(futures::future::ok(resp));

@@ -29,9 +29,10 @@ use tokio_executor::Executor;
 
 use bui_backend::change_tracker::ChangeTracker;
 use bui_backend::highlevel::{BuiAppInner, create_bui_app_inner};
+use bui_backend::lowlevel::CallbackDataAndSession;
 
 use futures::{Future, Stream};
-use bui_demo_data::Shared;
+use bui_demo_data::{Shared, Callback};
 
 // Include the files to be served and define `fn get_default_config()`.
 include!(concat!(env!("OUT_DIR"), "/public.rs")); // Despite slash, this does work on Windows.
@@ -96,7 +97,23 @@ impl MyApp {
         // Create a Stream to handle callbacks from clients.
         let callback_rx_future = inner
             .add_callback_listener(10) // max number of callbacks to buffer
-            .for_each(move |msg| {
+            .filter_map(|msg: CallbackDataAndSession| {
+                // Here we convert from a generic JSON type to our
+                // enum type `Callback` whose definition can be shared
+                // between backend and frontend if using a Rust frontend.
+                // Otherwise, the frontend must carefully construct the
+                // payload such that this conversion succeeds.
+                match serde_json::from_value::<Callback>(msg.payload) {
+                    Ok(v) => {
+                        Some(v)
+                    },
+                    Err(e) => {
+                        error!("failed conversion: {}", e);
+                        None
+                    }
+                }
+            })
+            .for_each(move |msg: Callback| {
 
                 // This closure is the callback handler called whenever the
                 // client browser sends us something.
@@ -105,36 +122,14 @@ impl MyApp {
                 // the browser's callback.
                 let mut shared = tracker_arc2.write();
 
-                // All callbacks have the `name` field.
-                match msg.name.as_ref() {
-                    "set_is_recording" => {
-                        // All callbacks also have the `args` field. Here, take
-                        // generic json value and convert it to a bool.
-                        match serde_json::from_value::<bool>(msg.args) {
-                            Ok(bool_value) => {
-                                // Update our shared store with the value received.
-                                shared.modify(|shared| shared.is_recording = bool_value);
-                            },
-                            Err(e) => {
-                                error!("could not cast json value to bool: {:?}", e);
-                            },
-                        };
+                match msg {
+                    Callback::SetIsRecording(bool_value) => {
+                        // Update our shared store with the value received.
+                        shared.modify(|shared| shared.is_recording = bool_value);
                     },
-                    "set_name" => {
-                        // Take the generic `args` and convert it to a String.
-                        match serde_json::from_value::<String>(msg.args) {
-                            Ok(name) => {
-                                // Update our shared store with the value received.
-                                shared.modify(|shared| shared.name = name);
-                            },
-                            Err(e) => {
-                                error!("could not cast json value to String: {:?}", e);
-                            },
-                        };
-                    },
-                    name => {
-                        // This is an error case. Log it. (And do not take down the server.)
-                        error!("callback with unknown name: {:?}", name);
+                    Callback::SetName(name) => {
+                        // Update our shared store with the value received.
+                        shared.modify(|shared| shared.name = name);
                     },
                 }
                 futures::future::ok(())

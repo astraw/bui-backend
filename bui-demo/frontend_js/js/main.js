@@ -45,11 +45,7 @@ function update_dom(state) {
     }
 }
 
-function send_message(name,args){
-    var msg = {
-        name,
-        args
-    };
+function send_message(msg){
     var buf = JSON.stringify(msg);
 
     var httpRequest = new XMLHttpRequest();
@@ -59,16 +55,16 @@ function send_message(name,args){
 }
 
 document.getElementById("switch-1").onclick = function(event) {
-    send_message("set_is_recording", event.target.checked);
+    send_message({SetIsRecording: event.target.checked});
  };
 
 document.getElementById("name-input").addEventListener('blur',function(event) {
-    send_message("set_name", event.target.value);
+    send_message({SetName: event.target.value});
 });
 
 document.getElementById("name-input").addEventListener('keypress',function(event) {
     if (event.key == "Enter") {
-        send_message("set_name", event.target.value);
+        send_message({SetName: event.target.value});
         document.getElementById("name-input").blur();
     }
 });

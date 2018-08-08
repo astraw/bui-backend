@@ -3,11 +3,10 @@
 #[macro_use]
 extern crate stdweb;
 extern crate serde;
-#[macro_use]
 extern crate serde_json;
 extern crate bui_demo_data;
 
-use bui_demo_data::Shared;
+use bui_demo_data::{Shared, Callback};
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -43,12 +42,8 @@ struct MyState {
 
 type StateRef = Rc<RefCell<MyState>>;
 
-fn send_message(name: &str, args: serde_json::Value) {
-    let data = json!({
-        "name": name,
-        "args": args
-    });
-    let buf = serde_json::to_string(&data).unwrap();
+fn send_message(payload: Callback) {
+    let buf = serde_json::to_string(&payload).unwrap();
     js!{ @(no_return)
         var httpRequest = new XMLHttpRequest();
         httpRequest.open("POST", "callback");
@@ -148,13 +143,13 @@ fn main() {
         if event.key() == "Enter" {
             event.prevent_default();
             let name: String = name_input.raw_value();
-            send_message("set_name", serde_json::value::to_value(name).unwrap());
+            send_message(Callback::SetName(name));
             name_input.blur();
         }
     }));
     name_input.add_event_listener(enclose!( (name_input) move |_: BlurEvent| {
         let name: String = name_input.raw_value();
-        send_message("set_name", serde_json::value::to_value(name).unwrap());
+        send_message(Callback::SetName(name));
     }));
 
     let recording_input: InputElement = document()
@@ -164,7 +159,7 @@ fn main() {
         .unwrap();
     recording_input.add_event_listener(enclose!( (recording_input) move |_: ClickEvent| {
         let checked: bool = js!( return @{&recording_input}.checked; ).try_into().unwrap();
-        send_message("set_is_recording", serde_json::value::to_value(checked).unwrap());
+        send_message(Callback::SetIsRecording(checked));
     }));
 
     let supports_event_source: bool = js!(return !!window.EventSource).try_into().unwrap();

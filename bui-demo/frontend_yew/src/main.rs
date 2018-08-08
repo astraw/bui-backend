@@ -5,14 +5,13 @@ extern crate yew;
 #[macro_use]
 extern crate stdweb;
 extern crate serde;
-#[macro_use]
 extern crate serde_json;
 extern crate bui_demo_data;
 #[macro_use]
 extern crate failure;
 extern crate http;
 
-use bui_demo_data::Shared;
+use bui_demo_data::{Shared, Callback};
 use yew::prelude::*;
 use yew::services::Task;
 
@@ -120,7 +119,7 @@ impl Component<Context> for Model {
             }
             Msg::SendName => {
                 let name = self.local_name.clone();
-                self.send_message("set_name", serde_json::value::to_value(name).unwrap(), env);
+                self.send_message(Callback::SetName(name), env);
                 return false; // don't update DOM, do that on return
             }
             Msg::ToggleRecording => {
@@ -129,8 +128,7 @@ impl Component<Context> for Model {
                 } else {
                     false
                 };
-                self.send_message("set_is_recording",
-                    serde_json::value::to_value(new_value).unwrap(), env);
+                self.send_message(Callback::SetIsRecording(new_value), env);
                 return false; // don't update DOM, do that on return
             }
             Msg::Ignore => {
@@ -188,12 +186,8 @@ impl Model {
         }
     }
 
-    fn send_message(&mut self, name: &str, args: serde_json::Value, env: &mut Env<Context, Self>) {
-        let data = json!({
-            "name": name,
-            "args": args,
-        });
-        let buf = serde_json::to_string(&data).map_err(|e| e.into());
+    fn send_message(&mut self, payload: Callback, env: &mut Env<Context, Self>) {
+        let buf = serde_json::to_string(&payload).map_err(|e| e.into());
         let post_request = Request::post("callback")
                 .header("Content-Type", "application/json;charset=UTF-8")
                 .body(buf)
