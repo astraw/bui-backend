@@ -18,6 +18,7 @@ for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/
   completes.
 * `walkdir`, `includedir`, and `includedir_codegen` crates only used when the
   `bundle_files` feature is used.
+* Drop elm frontend in `bui-demo`.
 
 ### Added
 

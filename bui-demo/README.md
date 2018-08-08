@@ -3,8 +3,8 @@
 This is a self containted demonstration of
 [bui-backend](https://github.com/astraw/bui-backend), a Browser User Interface
 (BUI) application framework in Rust. The backend server is written in Rust and
-possible frontends written in Rust web assembly (wasm), plain Javascript and
-Elm. Using the Rust frontend, this is a demo application with frontend and
+possible frontends written in Rust web assembly (wasm), and plain Javascript.
+Using the Rust frontend, this is a demo application with frontend and
 backend written in Rust that can be shipped as a single file that has a
 browser-based UI.
 
@@ -51,22 +51,6 @@ To run with other options:
 
     # Use JS frontend, files served from filesystem for frontend development:
     cargo run --no-default-features --features "serve_files frontend_js"
-
-    # or
-
-    # Use Elm frontend, files served from filesystem for frontend development:
-    # The following line requires building the Elm frontend (see below).
-    cargo run --no-default-features --features "serve_files frontend_elm"
-
-    # or
-
-    # Use Elm frontend, all files bundled into executable:
-    # The following line requires building the Elm frontend (see below).
-    cargo run --no-default-features --features "bundle_files frontend_elm"
-
-## Building the Elm frontend
-
-    cd frontend_elm && make
 
 ## Building the Rust stdweb frontend
 

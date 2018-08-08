@@ -31,7 +31,7 @@ fn create_codegen_file<P, Q>(files_dir: P, codegen_fname: Q) -> Result<(), std::
     let required: std::path::PathBuf = files_dir.as_ref().join("index.html");
     if !entries.contains(&required) {
         return Err(std::io::Error::new(std::io::ErrorKind::Other,
-                                       format!("no {:?} file (hint: run make in elm_frontend)",
+                                       format!("no {:?} file",
                                                required)));
     }
 
@@ -101,7 +101,7 @@ fn include_config<P, Q>(files_dir: P, codegen_fname: Q) -> Result<(), Box<Error>
 /// This should be called from the `build.rs` script in your crate.
 /// This will define the variable `BUI_BACKEND_CONFIG` which should
 /// be passed to `bui_backend::BuiBackend::new()` to configure it
-/// correctly. See the `demo_js` and `demo_elm` for example usage.
+/// correctly. See the `bui-demo` for example usage.
 pub fn codegen<P, Q>(files_dir: P, generated_path: Q) -> Result<(), Box<Error>>
     where P: AsRef<Path>,
           Q: AsRef<Path>

@@ -11,7 +11,7 @@ browser. Assets can be served from the filesystem or bundled in the executable.
 The server provides an "escape hatch" to allow server-client communication
 outside of bui-backend. [The demo][bui-demo] includes a Rust web assembly (wasm)
 frontend using the yew framework, a Rust web assembly (wasm) frontend using
-stdweb, plain Javascript frontend and an Elm frontend. Together, this lets you
+stdweb, and a plain Javascript frontend. Together, this lets you
 ship an application written in Rust as a single file with a browser-based UI.
 
 The operating principle is that the server runs an HTTP server (based on
@@ -41,9 +41,8 @@ JSON.
 #### Demo
 
  A demo is available with frontends written in Rust web assembly (plain wasm or
- yew framework), Javascript and Elm. (Use [`bui-demo`][bui-demo] with
- `frontend_stdweb`, `frontend_yew`, `frontend_js`, or `frontend_elm`
- feature.)
+ yew framework) and Javascript. (Use [`bui-demo`][bui-demo] with
+ `frontend_stdweb`, `frontend_yew`, or `frontend_js` feature.)
 
 #### Potential improvements
 
@@ -65,7 +64,7 @@ input.
 #### Other crates in this repository
 
 - `codegen` - Buildtime codegen support for bui-backend.
-- `bui-demo` - Example program with Rust, Javascript and Elm frontends.
+- `bui-demo` - Example program with Rust and Javascript frontends.
 
 ## License
 
