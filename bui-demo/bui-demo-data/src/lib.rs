@@ -8,7 +8,7 @@ pub struct Shared {
     pub name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Callback {
     SetIsRecording(bool),
     SetName(String),

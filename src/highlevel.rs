@@ -47,16 +47,17 @@ pub struct ConnectionEvent {
 // ------
 
 /// Maintain state within a BUI application.
-pub struct BuiAppInner<T>
+pub struct BuiAppInner<T,CB>
     where T: Clone + PartialEq + Serialize + Send
 {
     i_shared_arc: Arc<RwLock<ChangeTracker<T>>>,
     i_txers: Arc<RwLock<HashMap<ConnectionKeyType, (SessionKeyType, EventChunkSender, String)>>>,
-    i_bui_server: BuiService,
+    i_bui_server: BuiService<CB>,
 }
 
-impl<T> BuiAppInner<T>
-    where T: Clone + PartialEq + Serialize + Send + 'static
+impl<'a,T,CB> BuiAppInner<T,CB>
+    where T: Clone + PartialEq + Serialize + Send + 'static,
+          CB : serde::de::DeserializeOwned + Clone + Send + 'static,
 {
     /// Get reference counted reference to the underlying data store.
     pub fn shared_arc(&self) -> &Arc<RwLock<ChangeTracker<T>>> {
@@ -64,28 +65,29 @@ impl<T> BuiAppInner<T>
     }
 
     /// Get reference to to the underlying `BuiService`.
-    pub fn bui_service(&self) -> &BuiService {
+    pub fn bui_service(&self) -> &BuiService<CB> {
         &self.i_bui_server
     }
 
     /// Get a stream of callback events.
     pub fn add_callback_listener(&mut self,
                                  channel_size: usize)
-                                 -> mpsc::Receiver<CallbackDataAndSession> {
+                                 -> mpsc::Receiver<CallbackDataAndSession<CB>> {
         self.i_bui_server.add_callback_listener(channel_size)
     }
 }
 
 /// Factory function to create a new BUI application.
-pub fn create_bui_app_inner<T>(my_executor: &mut Executor,
+pub fn create_bui_app_inner<'a,T,CB>(my_executor: &mut Executor,
                                jwt_secret: Option<&[u8]>,
                                shared_arc: Arc<RwLock<ChangeTracker<T>>>,
                                addr: &SocketAddr,
                                config: Config,
                                chan_size: usize,
                                events_prefix: &str)
-                               -> Result<(mpsc::Receiver<ConnectionEvent>, BuiAppInner<T>), Error>
+                               -> Result<(mpsc::Receiver<ConnectionEvent>, BuiAppInner<T,CB>), Error>
     where T: Clone + PartialEq + Serialize + 'static + Send + Sync,
+         CB : serde::de::DeserializeOwned + Clone + Send + 'static,
 {
     let (rx_conn, bui_server) = launcher(config, jwt_secret, chan_size, events_prefix);
 

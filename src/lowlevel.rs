@@ -1,5 +1,5 @@
 //! Implements a web server for a Browser User Interface (BUI).
-use {serde_json, std, futures, jsonwebtoken};
+use {serde, serde_json, std, futures, jsonwebtoken};
 #[cfg(feature = "bundle_files")]
 use includedir;
 use failure::Fail;
@@ -35,16 +35,16 @@ struct JwtClaims {
 
 /// Callback data from a connected client.
 #[derive(Clone, Debug)]
-pub struct CallbackDataAndSession {
+pub struct CallbackDataAndSession<T> {
     /// The callback data sent from the client.
-    pub payload: serde_json::Value,
+    pub payload: T,
     /// The session key associated with the client.
     pub session_key: SessionKeyType,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-struct WireCallbackData {
-    payload: serde_json::Value,
+struct WireCallbackData<T> {
+    payload: T,
 }
 
 /// Configuration settings for `BuiService`.
@@ -89,16 +89,18 @@ pub type ConnectionKeyType = u32;
 ///
 /// Implements `hyper::server::Service` to act as HTTP server and handle requests.
 #[derive(Clone)]
-pub struct BuiService {
+pub struct BuiService<T> {
     config: Config,
-    callback_senders: Arc<Mutex<Vec<mpsc::Sender<CallbackDataAndSession>>>>,
+    callback_senders: Arc<Mutex<Vec<mpsc::Sender<CallbackDataAndSession<T>>>>>,
     next_connection_key: Arc<Mutex<ConnectionKeyType>>,
     jwt_secret: Arc<Mutex<Option<Vec<u8>>>>,
     tx_new_connection: NewConnectionSender,
     events_prefix: String,
 }
 
-impl BuiService {
+impl<T> BuiService<T>
+    where T: 'static + serde::de::DeserializeOwned + Clone + Send,
+{
     fn fullpath(&self, path: &str) -> String {
         assert!(path.starts_with("/")); // security check
         let path = std::path::PathBuf::from(path)
@@ -158,7 +160,7 @@ impl BuiService {
     /// Get a stream of callback events.
     pub fn add_callback_listener(&mut self,
                                  channel_size: usize)
-                                 -> mpsc::Receiver<CallbackDataAndSession> {
+                                 -> mpsc::Receiver<CallbackDataAndSession<T>> {
         let (tx, rx) = mpsc::channel(channel_size);
         {
             let mut cb_tx_vec = self.callback_senders.lock().unwrap();
@@ -186,9 +188,18 @@ impl BuiService {
         // parse data
         let fut = all_chunks_future
             .and_then(move |data: Vec<u8>| {
-                match serde_json::from_slice::<serde_json::Value>(&data) {
+                let json_value = {
+                     serde_json::from_slice::<serde_json::Value>(&data).unwrap() // XXX FIXME TODO remove unwrap
+                };
+                // Here we convert from a generic JSON type to our
+                // enum type `Callback` whose definition can be shared
+                // between backend and frontend if using a Rust frontend.
+                // Otherwise, the frontend must carefully construct the
+                // payload such that this conversion succeeds.
+                match serde_json::from_value::<T>(json_value) {
                     Ok(payload) => {
                         {
+                            let payload = payload.clone();
                             // valid data, parse it
                             let mut cb_tx_vec = cbsenders.lock().unwrap();
                             let mut restore_tx = Vec::new();
@@ -359,7 +370,9 @@ fn get_client_key(map: &hyper::HeaderMap<hyper::header::HeaderValue>,
     result
 }
 
-impl hyper::service::Service for BuiService {
+impl<T> hyper::service::Service for BuiService<T>
+    where T: 'static + serde::de::DeserializeOwned + Clone + Send,
+{
     type ReqBody = hyper::Body;
     type ResBody = hyper::Body;
     type Error = hyper::Error;
@@ -425,11 +438,11 @@ impl hyper::service::Service for BuiService {
 }
 
 /// Create a stream of connection events and a `BuiService`.
-pub fn launcher(config: Config,
+pub fn launcher<T>(config: Config,
                 jwt_secret: Option<&[u8]>,
                 channel_size: usize,
                 events_prefix: &str)
-                -> (mpsc::Receiver<NewEventStreamConnection>, BuiService) {
+                -> (mpsc::Receiver<NewEventStreamConnection>, BuiService<T>) {
     let next_connection_key = Arc::new(Mutex::new(0));
 
     let callback_senders = Arc::new(Mutex::new(Vec::new()));

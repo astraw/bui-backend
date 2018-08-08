@@ -39,7 +39,7 @@ include!(concat!(env!("OUT_DIR"), "/public.rs")); // Despite slash, this does wo
 
 /// The structure that holds our app data
 struct MyApp {
-    inner: BuiAppInner<Shared>,
+    inner: BuiAppInner<Shared, Callback>,
 }
 
 fn address( matches: &clap::ArgMatches ) -> std::net::SocketAddr {
@@ -97,23 +97,7 @@ impl MyApp {
         // Create a Stream to handle callbacks from clients.
         let callback_rx_future = inner
             .add_callback_listener(10) // max number of callbacks to buffer
-            .filter_map(|msg: CallbackDataAndSession| {
-                // Here we convert from a generic JSON type to our
-                // enum type `Callback` whose definition can be shared
-                // between backend and frontend if using a Rust frontend.
-                // Otherwise, the frontend must carefully construct the
-                // payload such that this conversion succeeds.
-                match serde_json::from_value::<Callback>(msg.payload) {
-                    Ok(v) => {
-                        Some(v)
-                    },
-                    Err(e) => {
-                        error!("failed conversion: {}", e);
-                        None
-                    }
-                }
-            })
-            .for_each(move |msg: Callback| {
+            .for_each(move |msg: CallbackDataAndSession<Callback>| {
 
                 // This closure is the callback handler called whenever the
                 // client browser sends us something.
@@ -122,7 +106,7 @@ impl MyApp {
                 // the browser's callback.
                 let mut shared = tracker_arc2.write();
 
-                match msg {
+                match msg.payload {
                     Callback::SetIsRecording(bool_value) => {
                         // Update our shared store with the value received.
                         shared.modify(|shared| shared.is_recording = bool_value);
