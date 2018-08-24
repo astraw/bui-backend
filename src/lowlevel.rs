@@ -66,7 +66,6 @@ pub struct Config {
 
 /// Wrapper around `hyper::Chunk` to enable sending data to clients.
 pub type EventChunkSender = mpsc::Sender<hyper::Chunk>;
-// pub type EventChunkSender = mpsc::Sender<std::result::Result<hyper::Chunk, hyper::Error>>;
 
 /// Wrap the sender to each connected event stream listener.
 pub struct NewEventStreamConnection {
