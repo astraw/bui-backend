@@ -25,12 +25,13 @@ use std::io::Read;
 
 /// Alias for `Uuid` indicating that sessions are tracked
 /// by keys of this type (one per client browser).
-pub type SessionKeyType = Uuid;
+#[derive(Debug)]
+pub struct SessionKey(Uuid);
 
 /// The claims validated using JSON Web Tokens.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct JwtClaims {
-    key: SessionKeyType,
+    key: SessionKey,
 }
 
 /// Callback data from a connected client.
@@ -39,7 +40,7 @@ pub struct CallbackDataAndSession<T> {
     /// The callback data sent from the client.
     pub payload: T,
     /// The session key associated with the client.
-    pub session_key: SessionKeyType,
+    pub session_key: SessionKey,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -72,17 +73,17 @@ pub struct NewEventStreamConnection {
     /// A sink for messages send to each connection (one per client tab).
     pub chunk_sender: EventChunkSender,
     /// Identifier for each connected session (one per client browser).
-    pub session_key: SessionKeyType,
+    pub session_key: SessionKey,
     /// Identifier for each connection (one per client tab).
-    pub connection_key: ConnectionKeyType,
+    pub connection_key: ConnectionKey,
     /// The path being requested (starts with `BuiService::events_prefix`).
     pub path: String,
 }
 
 type NewConnectionSender = mpsc::Sender<NewEventStreamConnection>;
 
-/// Alias for `u32` to identify each connected event stream listener (one per client tab).
-pub type ConnectionKeyType = u32;
+/// Identifier for each connected event stream listener (one per client tab).
+pub struct ConnectionKey(u32);
 
 /// Handle HTTP requests and coordinate responses to data updates.
 ///
@@ -91,7 +92,7 @@ pub type ConnectionKeyType = u32;
 pub struct BuiService<T> {
     config: Config,
     callback_senders: Arc<Mutex<Vec<mpsc::Sender<CallbackDataAndSession<T>>>>>,
-    next_connection_key: Arc<Mutex<ConnectionKeyType>>,
+    next_connection_key: Arc<Mutex<ConnectionKey>>,
     jwt_secret: Arc<Mutex<Option<Vec<u8>>>>,
     tx_new_connection: NewConnectionSender,
     events_prefix: String,
@@ -149,7 +150,7 @@ impl<T> BuiService<T>
         &self.events_prefix
     }
 
-    fn get_next_connection_key(&self) -> ConnectionKeyType {
+    fn get_next_connection_key(&self) -> ConnectionKey {
         let mut nk = self.next_connection_key.lock().unwrap();
         let result = *nk;
         *nk += 1;
@@ -170,7 +171,7 @@ impl<T> BuiService<T>
 
     fn handle_callback(&self,
         req: Request<hyper::Body>,
-        session_key: SessionKeyType,
+        session_key: SessionKey,
         )
         -> Box<Future<Item=Response<hyper::Body>, Error=hyper::Error> + Send>
     {
@@ -255,7 +256,7 @@ impl<T> BuiService<T>
     fn handle_req(&self,
         req: &hyper::Request<hyper::Body>,
         mut resp: http::response::Builder,
-        session_key: &SessionKeyType)
+        session_key: &SessionKey)
         -> Result<http::Response<hyper::Body>, http::Error>
     {
         let resp_final = match (req.method(), req.uri().path()) {
@@ -342,7 +343,7 @@ impl<T> BuiService<T>
 fn get_client_key(map: &hyper::HeaderMap<hyper::header::HeaderValue>,
                   cookie_name: &str,
                   jwt_secret: &[u8])
-                  -> Option<SessionKeyType> {
+                  -> Option<SessionKey> {
     let mut result = None;
     let valid_start = format!("{}=", cookie_name);
     for cookie in map.get_all(hyper::header::COOKIE).iter() {

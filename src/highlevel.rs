@@ -1,7 +1,7 @@
 //! Helpers for writing browser user interfaces (BUIs).
 //!
 //! The API in this module is likely to change as ergonomics get better.
-use lowlevel::{BuiService, ConnectionKeyType, SessionKeyType, EventChunkSender,
+use lowlevel::{BuiService, ConnectionKey, SessionKey, EventChunkSender,
                CallbackDataAndSession, Config, launcher};
 use {std, hyper, serde, serde_json, futures};
 
@@ -37,9 +37,9 @@ pub struct ConnectionEvent {
     /// The type of connection for this event.
     pub typ: ConnectionEventType,
     /// Identifier for the connecting session (one ber browser).
-    pub session_key: SessionKeyType,
+    pub session_key: SessionKey,
     /// Identifier for the connection (one ber tab).
-    pub connection_key: ConnectionKeyType,
+    pub connection_key: ConnectionKey,
     /// The path being requested (starts with `BuiService::events_prefix`).
     pub path: String,
 }
@@ -51,7 +51,7 @@ pub struct BuiAppInner<T,CB>
     where T: Clone + PartialEq + Serialize + Send
 {
     i_shared_arc: Arc<RwLock<ChangeTracker<T>>>,
-    i_txers: Arc<RwLock<HashMap<ConnectionKeyType, (SessionKeyType, EventChunkSender, String)>>>,
+    i_txers: Arc<RwLock<HashMap<ConnectionKey, (SessionKey, EventChunkSender, String)>>>,
     i_bui_server: BuiService<CB>,
 }
 
