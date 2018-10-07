@@ -15,6 +15,7 @@ extern crate jsonwebtoken;
 extern crate uuid;
 extern crate failure;
 extern crate parking_lot;
+extern crate chrono;
 #[macro_use]
 extern crate failure_derive;
 

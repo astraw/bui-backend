@@ -10,6 +10,7 @@ use hyper::{Method, StatusCode};
 use hyper::{Request, Response};
 use hyper::header::ACCEPT;
 use uuid::Uuid;
+use chrono::Utc;
 
 use futures::{Future, Stream, Sink};
 use futures::sync::mpsc;
@@ -31,6 +32,7 @@ pub type SessionKeyType = Uuid;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct JwtClaims {
     key: SessionKeyType,
+    exp: i64,
 }
 
 /// Callback data from a connected client.
@@ -414,8 +416,10 @@ impl<T> hyper::service::Service for BuiService<T>
             // There was no valid client key in the HTTP header, so generate a
             // new one and set it on client.
             let session_key = Uuid::new_v4();
-            let claims = JwtClaims { key: session_key.clone() };
-
+            let claims = JwtClaims {
+                key: session_key.clone(),
+                exp: Utc::now().timestamp() + 10000,
+            };
 
             if let Some(ref jwt_secret) = *self.jwt_secret.lock().unwrap() {
                 let token = {
