@@ -1,0 +1,9 @@
+[package]
+name = "bui-backend-types"
+version = "0.1.0"
+authors = ["Andrew Straw <strawman@astraw.com>"]
+
+[dependencies]
+uuid = { version = "0.7", features = ["v4", "serde"] }
+serde = { version = "1.0", default-features = false }
+serde_derive = "1.0"

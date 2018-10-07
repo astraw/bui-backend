@@ -19,6 +19,8 @@ extern crate chrono;
 #[macro_use]
 extern crate failure_derive;
 
+extern crate bui_backend_types;
+
 mod errors;
 pub use errors::Error;
 

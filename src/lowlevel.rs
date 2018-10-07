@@ -9,7 +9,6 @@ use hyper;
 use hyper::{Method, StatusCode};
 use hyper::{Request, Response};
 use hyper::header::ACCEPT;
-use uuid::Uuid;
 use chrono::Utc;
 
 use futures::{Future, Stream, Sink};
@@ -17,26 +16,13 @@ use futures::sync::mpsc;
 
 use std::sync::{Arc, Mutex};
 
+use bui_backend_types::{ConnectionKey, SessionKey};
 use Error;
 
 #[cfg(feature = "serve_files")]
 use std::io::Read;
 
 // ---------------------------
-
-/// Identifier for each session (one per client browser).
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub struct SessionKey(Uuid);
-
-impl SessionKey {
-    pub fn new() -> Self {
-        SessionKey(Uuid::new_v4())
-    }
-}
-
-/// Identifier for each connected event stream listener (one per client tab).
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub struct ConnectionKey(u32);
 
 /// The claims validated using JSON Web Tokens.
 #[derive(Serialize, Deserialize, Debug, Clone)]

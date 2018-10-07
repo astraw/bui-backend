@@ -12,6 +12,7 @@ categories = ["gui", "web-programming::http-server"]
 
 [dependencies]
 bui-backend-codegen = {version="0.1.4", default-features = false, path="codegen"}
+bui-backend-types = {version="0.1", path="types"}
 futures = "0.1.11"
 parking_lot = "0.6"
 includedir = {version="0.4", optional=true}
@@ -41,4 +42,5 @@ serve_files = ["bui-backend-codegen/serve_files"]
 members = [
     "codegen",
     "bui-demo",
+    "types",
 ]
