@@ -24,10 +24,19 @@ use std::io::Read;
 
 // ---------------------------
 
-/// Alias for `Uuid` indicating that sessions are tracked
-/// by keys of this type (one per client browser).
-#[derive(Debug)]
+/// Identifier for each session (one per client browser).
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct SessionKey(Uuid);
+
+impl SessionKey {
+    pub fn new() -> Self {
+        SessionKey(Uuid::new_v4())
+    }
+}
+
+/// Identifier for each connected event stream listener (one per client tab).
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub struct ConnectionKey(u32);
 
 /// The claims validated using JSON Web Tokens.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -83,9 +92,6 @@ pub struct NewEventStreamConnection {
 }
 
 type NewConnectionSender = mpsc::Sender<NewEventStreamConnection>;
-
-/// Identifier for each connected event stream listener (one per client tab).
-pub struct ConnectionKey(u32);
 
 /// Handle HTTP requests and coordinate responses to data updates.
 ///
@@ -154,8 +160,8 @@ impl<T> BuiService<T>
 
     fn get_next_connection_key(&self) -> ConnectionKey {
         let mut nk = self.next_connection_key.lock().unwrap();
-        let result = *nk;
-        *nk += 1;
+        let result = nk.clone();
+        nk.0 = nk.0 + 1;
         result
     }
 
@@ -416,7 +422,7 @@ impl<T> hyper::service::Service for BuiService<T>
         } else {
             // There was no valid client key in the HTTP header, so generate a
             // new one and set it on client.
-            let session_key = Uuid::new_v4();
+            let session_key = SessionKey::new();
             let claims = JwtClaims {
                 key: session_key.clone(),
                 exp: Utc::now().timestamp() + 10000,
@@ -447,7 +453,7 @@ pub fn launcher<T>(config: Config,
                 channel_size: usize,
                 events_prefix: &str)
                 -> (mpsc::Receiver<NewEventStreamConnection>, BuiService<T>) {
-    let next_connection_key = Arc::new(Mutex::new(0));
+    let next_connection_key = Arc::new(Mutex::new(ConnectionKey(0)));
 
     let callback_senders = Arc::new(Mutex::new(Vec::new()));
 
