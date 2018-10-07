@@ -130,7 +130,7 @@ impl MyApp {
 
 }
 
-fn run() -> Result<(),Error> {
+fn main() -> Result<(),Error> {
 
     // Set environment variables from `.env` file, if it exists.
     dotenv::dotenv().ok();
@@ -207,14 +207,4 @@ fn run() -> Result<(),Error> {
     runtime.block_on(stream_future).unwrap();
 
     Ok(())
-}
-
-fn main() {
-    match run() {
-        Ok(()) => {},
-        Err(e) => {
-            error!("{}, {}", e.cause(), e.backtrace());
-            std::process::exit(1);
-        }
-    }
 }

@@ -22,8 +22,9 @@ log = "0.4"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = {version = "1.0"}
-jsonwebtoken = "4"
-uuid = { version = "0.6", features = ["v4", "serde"] }
+jsonwebtoken = "5"
+chrono = "0.4"
+uuid = { version = "0.7", features = ["v4", "serde"] }
 failure = "0.1"
 failure_derive = "0.1"
 
