@@ -16,7 +16,7 @@ use futures::sync::mpsc;
 
 use std::sync::{Arc, Mutex};
 
-use bui_backend_types::{ConnectionKey, SessionKey};
+use bui_backend_types::{ConnectionKey, SessionKey, CallbackDataAndSession};
 use Error;
 
 #[cfg(feature = "serve_files")]
@@ -29,15 +29,6 @@ use std::io::Read;
 struct JwtClaims {
     key: SessionKey,
     exp: i64,
-}
-
-/// Callback data from a connected client.
-#[derive(Clone, Debug)]
-pub struct CallbackDataAndSession<T> {
-    /// The callback data sent from the client.
-    pub payload: T,
-    /// The session key associated with the client.
-    pub session_key: SessionKey,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]

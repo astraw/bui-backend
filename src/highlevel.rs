@@ -1,8 +1,9 @@
 //! Helpers for writing browser user interfaces (BUIs).
 //!
 //! The API in this module is likely to change as ergonomics get better.
-use lowlevel::{BuiService, EventChunkSender,
-               CallbackDataAndSession, Config, launcher};
+use bui_backend_types::{ConnectionKey, SessionKey, CallbackDataAndSession};
+use lowlevel::{BuiService, EventChunkSender, Config, launcher};
+
 use {std, hyper, serde, serde_json, futures};
 
 use change_tracker::ChangeTracker;
@@ -18,7 +19,6 @@ use tokio_executor::Executor;
 
 use serde::Serialize;
 
-use bui_backend_types::{ConnectionKey, SessionKey};
 use ::Error;
 
 // ------

@@ -8,6 +8,7 @@ license = "MIT/Apache-2.0"
 
 [dependencies]
 bui-backend = {version="0.7", default-features = false, path=".."}
+bui-backend-types = {version="0.1", path="../types"}
 log = "0.4"
 env_logger = "0.5"
 includedir = {version="0.4", optional=true}
