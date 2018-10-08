@@ -1,3 +1,4 @@
+//! Tracks changes to data and notifies listeners.
 use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
 use futures::sync::mpsc;

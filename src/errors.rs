@@ -7,8 +7,10 @@ pub enum Error {
     /// A wrapped error from the hyper crate
     #[fail(display = "{}", _0)]
     Hyper(#[cause] hyper::Error),
+    /// Indicates a SpawnError from tokio_executor occurred
     #[fail(display = "tokio_executor::SpawnError")]
     TokioSpawn,
+    /// An error that occurred with an event stream.
     #[fail(display = "rx event")]
     RxEvent,
 }
