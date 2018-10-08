@@ -9,8 +9,6 @@ use futures::Sink;
 /// The data to be tracked is type `T`.
 ///
 /// Subsribe to changes by calling `get_changes`.
-///
-/// See the [module-level documentation](./) for more details.
 pub struct ChangeTracker<T>
     where T: Clone + PartialEq
 {
