@@ -36,7 +36,7 @@ use futures::{Future, Stream};
 use bui_demo_data::{Shared, Callback};
 
 // Include the files to be served and define `fn get_default_config()`.
-include!(concat!(env!("OUT_DIR"), "/public.rs")); // Despite slash, this does work on Windows.
+include!(concat!(env!("OUT_DIR"), "/public.rs")); // Despite slash, this works on Windows.
 
 /// The structure that holds our app data
 struct MyApp {
