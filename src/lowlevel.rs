@@ -289,8 +289,6 @@ impl<T> BuiService<T>
                             hyper::header::CONTENT_TYPE,
                             hyper::header::HeaderValue::from_str("text/event-stream").expect("from_str"));
 
-                        // resp.header(hyper::header::ContentType(mime::TEXT_EVENT_STREAM))
-                            // .with_body(rx_event_stream);
                         resp.body( hyper::Body::wrap_stream( rx_event_stream.map_err(|_| Error::RxEvent.compat() ) ) )?
                     } else {
                         error!("Event request does specify 'Accept' or does \
