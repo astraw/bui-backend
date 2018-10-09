@@ -51,3 +51,44 @@ fn test_change_tracker() {
 
     assert!(data_store_rc.borrow().as_ref().val == 124);
 }
+
+#[test]
+fn test_dropped_rx() {
+
+    #[derive(Clone,PartialEq,Debug)]
+    struct StoreType {
+        val: i32,
+    }
+
+    let data_store_rc = Rc::new(RefCell::new(ChangeTracker::new(StoreType { val: 123 })));
+
+    {
+        let _rx = data_store_rc.borrow_mut().get_changes();
+        // drop rx at end of this scope
+    }
+
+    let mut rt = tokio::runtime::current_thread::Runtime::new().unwrap();
+
+    let dsclone = data_store_rc.clone();
+    // Create a future to cause a change
+    let cause_change = tokio_timer::Delay::new(
+        std::time::Instant::now())
+        .and_then(move |_| {
+            {
+                let mut data_store = dsclone.borrow_mut();
+                data_store.modify(|scoped_store| {
+                    assert!((*scoped_store).val == 123);
+                    (*scoped_store).val += 1;
+                });
+            }
+            Ok(())
+        })
+        .map_err(|_| ());
+
+    match rt.block_on(cause_change) {
+        Ok(_) => (),
+        Err(()) => panic!("should not get here"),
+    }
+
+    assert!(data_store_rc.borrow().as_ref().val == 124);
+}
