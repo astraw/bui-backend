@@ -1,5 +1,4 @@
 //! Tracks changes to data and notifies listeners.
-use std::mem::ManuallyDrop;
 use std::sync::Arc;
 use parking_lot::Mutex;
 use futures::sync::mpsc;
@@ -17,7 +16,7 @@ pub struct ChangeTracker<T>
     where T: Clone + PartialEq
 {
     value: T,
-    tx_map: Arc<Mutex<Vec<ManuallyDrop<mpsc::Sender<(T, T)>>>>>,
+    tx_map: Arc<Mutex<Vec<mpsc::Sender<(T, T)>>>>,
 }
 
 impl<T> ChangeTracker<T>
@@ -37,7 +36,6 @@ impl<T> ChangeTracker<T>
     /// To remove a listener, drop the Receiver.
     pub fn get_changes(&mut self) -> mpsc::Receiver<(T, T)> {
         let (tx, rx) = mpsc::channel(1);
-        let tx = ManuallyDrop::new(tx);
         let mut tx_map = self.tx_map.lock();
         tx_map.push(tx);
         rx
@@ -54,9 +52,8 @@ impl<T> ChangeTracker<T>
         let new_value = self.value.clone();
         if orig_value != new_value {
             let mut tx_map2 = self.tx_map.lock().clone();
-            for on_changed_tx in tx_map2.drain(0..) {
-                let mut on_changed_tx_i = ManuallyDrop::into_inner(on_changed_tx);
-                on_changed_tx_i
+            for mut on_changed_tx in tx_map2.drain(0..) {
+                on_changed_tx
                     .start_send((orig_value.clone(), new_value.clone())).expect("start send"); // TODO FIXME use .send() here
             }
         }
