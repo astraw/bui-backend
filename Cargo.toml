@@ -10,6 +10,9 @@ keywords = ["server", "user-interface", "server-sent-events", "futures", "tokio"
 license = "MIT/Apache-2.0"
 categories = ["gui", "web-programming::http-server"]
 
+[lib]
+doctest = false
+
 [dependencies]
 bui-backend-codegen = {version="0.1.4", default-features = false, path="codegen"}
 bui-backend-types = {version="0.1", path="types"}

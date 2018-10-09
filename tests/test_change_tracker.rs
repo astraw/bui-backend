@@ -45,7 +45,7 @@ fn test_change_tracker() {
 
     rt.spawn(cause_change);
     match rt.block_on(rx_printer) {
-        Ok(_) => unreachable!(),
+        Ok(_) => panic!("should not get here"),
         Err(()) => (),
     }
 

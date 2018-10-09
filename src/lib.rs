@@ -49,7 +49,7 @@
 //!
 //! In the `Cargo.toml` file for your backend application, add the following
 //! lines:
-//! ```toml,no_run
+//! ```toml
 //! [dependencies]
 //! bui-backend = "0.7"
 //! bui-backend-types = "0.7"
@@ -59,7 +59,7 @@
 //! ```
 //!
 //! Now, here is the example `build.rs` file:
-//! ```rust,no_run
+//! ```rust
 //! extern crate bui_backend_codegen;
 //!
 //! fn main() {
@@ -68,10 +68,9 @@
 //! ```
 //!
 //! Finally, in your `main.rs` file:
-//! ```
+//! ```rust
 //! // Include the files to be served and define `fn get_default_config()`.
 //! include!(concat!(env!("OUT_DIR"), "/public.rs")); // Despite slash, this works on Windows.
-//!
 //! ```
 
 
