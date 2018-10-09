@@ -197,10 +197,6 @@ impl<T> BuiService<T>
 
                             // Send the payload to all callback listeners.
 
-                            // TODO convert once from json payload into
-                            // type specified by caller rather than
-                            // forcing each caller to do it.
-
                             // TODO return an http error such as
                             // StatusCode::BAD_REQUEST if callback fails.
 
