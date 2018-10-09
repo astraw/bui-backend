@@ -5,9 +5,12 @@ use parking_lot::Mutex;
 use futures::sync::mpsc;
 use futures::Sink;
 
-/// Tracks changes to data and notifies listeners.
+/// Tracks changes to data. Notifies listeners via a `futures::Stream`.
 ///
-/// The data to be tracked is type `T`.
+/// The data to be tracked is type `T`. The value of type `T` is wrapped in a
+/// private field. The `AsRef` trait is implemented so `&T` can be obtained by
+/// calling `as_ref()`. Read and write access can be gained by calling the
+/// `modify` method.
 ///
 /// Subsribe to changes by calling `get_changes`.
 pub struct ChangeTracker<T>
@@ -40,6 +43,9 @@ impl<T> ChangeTracker<T>
         rx
     }
 
+    /// Modify the value of type `T`, notifying listeners upon change.
+    ///
+    /// To remove a listener, drop the Receiver.
     pub fn modify<F>(&mut self, f: F)
         where F: FnOnce(&mut T)
     {
