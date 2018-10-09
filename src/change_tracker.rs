@@ -42,8 +42,6 @@ impl<T> ChangeTracker<T>
     }
 
     /// Modify the value of type `T`, notifying listeners upon change.
-    ///
-    /// To remove a listener, drop the Receiver.
     pub fn modify<F>(&mut self, f: F)
         where F: FnOnce(&mut T)
     {
@@ -52,6 +50,7 @@ impl<T> ChangeTracker<T>
         let new_value = self.value.clone();
         if orig_value != new_value {
             for ref mut on_changed_tx in self.senders.lock().iter_mut() {
+                // TODO what happens when a receiver has been dropped?
                 on_changed_tx
                     .start_send((orig_value.clone(), new_value.clone())).expect("start send"); // TODO FIXME use .send() here
             }
