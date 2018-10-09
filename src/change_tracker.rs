@@ -51,8 +51,7 @@ impl<T> ChangeTracker<T>
         f(&mut self.value);
         let new_value = self.value.clone();
         if orig_value != new_value {
-            let mut senders2 = self.senders.lock().clone();
-            for mut on_changed_tx in senders2.drain(0..) {
+            for ref mut on_changed_tx in self.senders.lock().iter_mut() {
                 on_changed_tx
                     .start_send((orig_value.clone(), new_value.clone())).expect("start send"); // TODO FIXME use .send() here
             }
