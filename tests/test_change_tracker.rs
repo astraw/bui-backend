@@ -92,3 +92,56 @@ fn test_dropped_rx() {
 
     assert!(data_store_rc.borrow().as_ref().val == 124);
 }
+
+#[test]
+fn test_multiple_changes_no_rx() {
+
+    #[derive(Clone,PartialEq,Debug)]
+    struct StoreType {
+        val: i32,
+    }
+
+    let data_store_rc = Rc::new(RefCell::new(ChangeTracker::new(StoreType { val: 123 })));
+    let rx = data_store_rc.borrow_mut().get_changes();
+    let _rx_printer = rx.for_each(|(_, _)| -> Result<(),()> {
+            panic!("receiver should not be called");
+        });
+
+    let mut rt = tokio::runtime::current_thread::Runtime::new().unwrap();
+
+    let dsclone1 = data_store_rc.clone();
+    let dsclone2 = data_store_rc.clone();
+
+    // Create a future to cause a change
+    let cause_change1 = tokio_timer::Delay::new(
+        std::time::Instant::now())
+        .and_then(move |_| {
+            {
+                let mut data_store = dsclone1.borrow_mut();
+                data_store.modify(|scoped_store| {
+                    (*scoped_store).val += 1;
+                });
+            }
+            Ok(())
+        })
+        .map_err(|_| ());
+    rt.spawn(cause_change1);
+
+    // Create a future to cause a change
+    let cause_change2 = tokio_timer::Delay::new(
+        std::time::Instant::now())
+        .and_then(move |_| {
+            {
+                let mut data_store = dsclone2.borrow_mut();
+                data_store.modify(|scoped_store| {
+                    (*scoped_store).val += 1;
+                });
+            }
+            Ok(())
+        })
+        .map_err(|_| ());
+    rt.spawn(cause_change2);
+
+    rt.run().unwrap();
+    assert!(data_store_rc.borrow().as_ref().val == 125);
+}
