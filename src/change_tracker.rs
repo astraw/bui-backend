@@ -45,15 +45,20 @@ impl<T> ChangeTracker<T>
     pub fn modify<F>(&mut self, f: F)
         where F: FnOnce(&mut T)
     {
-        let orig_value = self.value.clone();
+        let orig = self.value.clone();
         f(&mut self.value);
-        let new_value = self.value.clone();
-        if orig_value != new_value {
-            for ref mut on_changed_tx in self.senders.lock().iter_mut() {
-                // TODO what happens when a receiver has been dropped?
-                on_changed_tx
-                    .start_send((orig_value.clone(), new_value.clone())).expect("start send"); // TODO FIXME use .send() here
+        let newval = self.value.clone();
+        if orig != newval {
+            let mut senders = self.senders.lock();
+            let mut keep = vec![];
+            for mut on_changed_tx in senders.drain(0..) {
+                // TODO FIXME use .send() here?
+                match on_changed_tx.start_send((orig.clone(), newval.clone())) {
+                    Ok(_) => keep.push(on_changed_tx),
+                    Err(_) => trace!("receiver dropped"),
+                }
             }
+            senders.extend(keep);
         }
     }
 }
