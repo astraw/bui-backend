@@ -16,7 +16,7 @@ pub struct ChangeTracker<T>
     where T: Clone + PartialEq
 {
     value: T,
-    tx_map: Arc<Mutex<Vec<mpsc::Sender<(T, T)>>>>,
+    senders: Arc<Mutex<Vec<mpsc::Sender<(T, T)>>>>,
 }
 
 impl<T> ChangeTracker<T>
@@ -27,7 +27,7 @@ impl<T> ChangeTracker<T>
     pub fn new(value: T) -> Self {
         Self {
             value,
-            tx_map: Arc::new(Mutex::new(Vec::new())),
+            senders: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -36,8 +36,8 @@ impl<T> ChangeTracker<T>
     /// To remove a listener, drop the Receiver.
     pub fn get_changes(&mut self) -> mpsc::Receiver<(T, T)> {
         let (tx, rx) = mpsc::channel(1);
-        let mut tx_map = self.tx_map.lock();
-        tx_map.push(tx);
+        let mut senders = self.senders.lock();
+        senders.push(tx);
         rx
     }
 
@@ -51,8 +51,8 @@ impl<T> ChangeTracker<T>
         f(&mut self.value);
         let new_value = self.value.clone();
         if orig_value != new_value {
-            let mut tx_map2 = self.tx_map.lock().clone();
-            for mut on_changed_tx in tx_map2.drain(0..) {
+            let mut senders2 = self.senders.lock().clone();
+            for mut on_changed_tx in senders2.drain(0..) {
                 on_changed_tx
                     .start_send((orig_value.clone(), new_value.clone())).expect("start send"); // TODO FIXME use .send() here
             }
