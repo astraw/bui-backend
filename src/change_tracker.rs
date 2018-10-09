@@ -1,6 +1,7 @@
 //! Tracks changes to data and notifies listeners.
 use std::mem::ManuallyDrop;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use parking_lot::Mutex;
 use futures::sync::mpsc;
 use futures::Sink;
 
@@ -34,7 +35,7 @@ impl<T> ChangeTracker<T>
     pub fn get_changes(&mut self) -> mpsc::Receiver<(T, T)> {
         let (tx, rx) = mpsc::channel(1);
         let tx = ManuallyDrop::new(tx);
-        let mut tx_map = self.tx_map.lock().unwrap();
+        let mut tx_map = self.tx_map.lock();
         tx_map.push(tx);
         rx
     }
@@ -46,7 +47,7 @@ impl<T> ChangeTracker<T>
         f(&mut self.value);
         let new_value = self.value.clone();
         if orig_value != new_value {
-            let mut tx_map2 = self.tx_map.lock().unwrap().clone();
+            let mut tx_map2 = self.tx_map.lock().clone();
             for on_changed_tx in tx_map2.drain(0..) {
                 let mut on_changed_tx_i = ManuallyDrop::into_inner(on_changed_tx);
                 on_changed_tx_i

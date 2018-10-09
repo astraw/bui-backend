@@ -14,7 +14,8 @@ use chrono::Utc;
 use futures::{Future, Stream, Sink};
 use futures::sync::mpsc;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use parking_lot::Mutex;
 
 use bui_backend_types::{ConnectionKey, SessionKey, CallbackDataAndSession};
 use Error;
@@ -136,7 +137,7 @@ impl<T> BuiService<T>
     }
 
     fn get_next_connection_key(&self) -> ConnectionKey {
-        let mut nk = self.next_connection_key.lock().unwrap();
+        let mut nk = self.next_connection_key.lock();
         let result = nk.clone();
         nk.0 = nk.0 + 1;
         result
@@ -148,7 +149,7 @@ impl<T> BuiService<T>
                                  -> mpsc::Receiver<CallbackDataAndSession<T>> {
         let (tx, rx) = mpsc::channel(channel_size);
         {
-            let mut cb_tx_vec = self.callback_senders.lock().unwrap();
+            let mut cb_tx_vec = self.callback_senders.lock();
             cb_tx_vec.push(tx);
         }
         rx
@@ -186,7 +187,7 @@ impl<T> BuiService<T>
                         {
                             let payload = payload.clone();
                             // valid data, parse it
-                            let mut cb_tx_vec = cbsenders.lock().unwrap();
+                            let mut cb_tx_vec = cbsenders.lock();
                             let mut restore_tx = Vec::new();
 
                             let args = CallbackDataAndSession {
@@ -364,7 +365,7 @@ impl<T> hyper::service::Service for BuiService<T>
     fn call(&mut self, req: Request<Self::ReqBody>) -> Self::Future {
         // Parse cookies.
         let opt_client_key = {
-            if let Some(ref jwt_secret) = *self.jwt_secret.lock().unwrap() {
+            if let Some(ref jwt_secret) = *self.jwt_secret.lock() {
                 get_client_key(&req.headers(), &self.config.cookie_name, &*jwt_secret)
             } else {
                 None
@@ -403,7 +404,7 @@ impl<T> hyper::service::Service for BuiService<T>
                 exp: Utc::now().timestamp() + 10000,
             };
 
-            if let Some(ref jwt_secret) = *self.jwt_secret.lock().unwrap() {
+            if let Some(ref jwt_secret) = *self.jwt_secret.lock() {
                 let token = {
                     jsonwebtoken::encode(&jsonwebtoken::Header::default(), &claims, &*jwt_secret)
                         .unwrap()
