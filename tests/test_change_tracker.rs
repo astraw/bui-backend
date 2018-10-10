@@ -2,9 +2,12 @@ extern crate tokio;
 extern crate tokio_timer;
 extern crate futures;
 extern crate bui_backend;
+extern crate parking_lot;
 
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::sync::Arc;
+use parking_lot::Mutex;
 
 use futures::{Future, Stream};
 use bui_backend::change_tracker::ChangeTracker;
@@ -144,4 +147,49 @@ fn test_multiple_changes_no_rx() {
 
     rt.run().unwrap();
     assert!(data_store_rc.borrow().as_ref().val == 125);
+}
+
+#[test]
+fn test_multithreaded_change_tracker() {
+
+    #[derive(Clone,PartialEq,Debug)]
+    struct StoreType {
+        val: i32,
+    }
+
+    let mut data_store = ChangeTracker::new(StoreType { val: 123 });
+    let rx = data_store.get_changes();
+    let data_store_arc = Arc::new(Mutex::new(data_store));
+    let rx_printer = rx.for_each(|(old_value, new_value)| {
+                                     assert!(old_value.val == 123);
+                                     assert!(new_value.val == 124);
+                                     futures::future::err(()) // return error to abort stream
+                                 });
+
+    // use multi-threaded tokio runtime
+    let mut rt = tokio::runtime::Runtime::new().unwrap();
+
+    let dsclone = data_store_arc.clone();
+    // Create a future to cause a change
+    let cause_change = tokio_timer::Delay::new(
+        std::time::Instant::now())
+        .and_then(move |_| {
+            {
+                let mut data_store = dsclone.lock();
+                data_store.modify(|scoped_store| {
+                    assert!((*scoped_store).val == 123);
+                    (*scoped_store).val += 1;
+                });
+            }
+            Ok(())
+        })
+        .map_err(|_| ());
+    rt.spawn(cause_change);
+
+    match rt.block_on_all(rx_printer) {
+        Ok(_) => panic!("should not get here"),
+        Err(()) => (),
+    }
+
+    assert!(data_store_arc.lock().as_ref().val == 124);
 }
