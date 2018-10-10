@@ -34,7 +34,7 @@ impl<T> ChangeTracker<T>
     /// Returns a Receiver which will receive messages whenever a change occurs.
     ///
     /// To remove a listener, drop the Receiver.
-    pub fn get_changes(&mut self) -> mpsc::Receiver<(T, T)> {
+    pub fn get_changes(&self) -> mpsc::Receiver<(T, T)> {
         let (tx, rx) = mpsc::channel(1);
         let mut senders = self.senders.lock();
         senders.push(tx);

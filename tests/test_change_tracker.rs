@@ -157,7 +157,7 @@ fn test_multithreaded_change_tracker() {
         val: i32,
     }
 
-    let mut data_store = ChangeTracker::new(StoreType { val: 123 });
+    let data_store = ChangeTracker::new(StoreType { val: 123 });
     let rx = data_store.get_changes();
     let data_store_arc = Arc::new(Mutex::new(data_store));
     let rx_printer = rx.for_each(|(old_value, new_value)| {
