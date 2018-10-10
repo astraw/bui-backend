@@ -52,7 +52,7 @@ impl<T> ChangeTracker<T>
             let mut senders = self.senders.lock();
             let mut keep = vec![];
             for mut on_changed_tx in senders.drain(0..) {
-                // TODO FIXME use .send() here?
+                // TODO use .send() here?
                 match on_changed_tx.start_send((orig.clone(), newval.clone())) {
                     Ok(_) => keep.push(on_changed_tx),
                     Err(_) => trace!("receiver dropped"),
