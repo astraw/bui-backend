@@ -14,6 +14,7 @@ extern crate clap;
 extern crate hyper;
 extern crate dotenv;
 extern crate futures;
+extern crate async_change_tracker;
 extern crate tokio;
 extern crate tokio_timer;
 extern crate tokio_executor;
@@ -28,7 +29,7 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use tokio_executor::Executor;
 
-use bui_backend::change_tracker::ChangeTracker;
+use async_change_tracker::ChangeTracker;
 use bui_backend::highlevel::{BuiAppInner, create_bui_app_inner};
 use bui_backend_types::CallbackDataAndSession;
 

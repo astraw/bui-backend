@@ -94,12 +94,12 @@ extern crate parking_lot;
 extern crate chrono;
 #[macro_use]
 extern crate failure_derive;
+extern crate async_change_tracker;
 
 extern crate bui_backend_types;
 
 mod errors;
 pub use errors::Error;
 
-pub mod change_tracker;
 pub mod lowlevel;
 pub mod highlevel;

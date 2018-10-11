@@ -6,7 +6,7 @@ use lowlevel::{BuiService, EventChunkSender, Config, launcher};
 
 use {std, hyper, serde, serde_json, futures};
 
-use change_tracker::ChangeTracker;
+use async_change_tracker::ChangeTracker;
 
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -169,7 +169,7 @@ pub fn create_bui_app_inner<'a,T,CB>(my_executor: &mut Executor,
     let change_listener = {
         let rx = {
             let mut shared = shared_store2.write();
-            shared.get_changes()
+            shared.get_changes(10) // capacity of channel is 10 changes
         };
         let rx = rx.for_each(move |x| {
             let (_old, new_value) = x;
