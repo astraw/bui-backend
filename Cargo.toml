@@ -15,8 +15,8 @@ doctest = false
 
 [dependencies]
 async-change-tracker = "0.1"
-bui-backend-codegen = {version="0.1.4", default-features = false, path="codegen"}
-bui-backend-types = {version="0.1", path="types"}
+bui-backend-codegen = {version="0.7", default-features = false, path="codegen"}
+bui-backend-types = {version="0.7", path="types"}
 futures = "0.1.11"
 parking_lot = "0.6"
 includedir = {version="0.4", optional=true}

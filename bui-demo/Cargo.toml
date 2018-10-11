@@ -1,6 +1,6 @@
 [package]
 name = "bui-demo"
-version = "0.5.0"
+version = "0.7.0"
 authors = ["Andrew Straw <strawman@astraw.com>"]
 build = "build.rs"
 repository = "https://github.com/astraw/bui-backend"
@@ -9,7 +9,7 @@ license = "MIT/Apache-2.0"
 [dependencies]
 async-change-tracker = "0.1"
 bui-backend = {version="0.7", default-features = false, path=".."}
-bui-backend-types = {version="0.1", path="../types"}
+bui-backend-types = {version="0.7", path="../types"}
 log = "0.4"
 env_logger = "0.5"
 includedir = {version="0.4", optional=true}
@@ -28,7 +28,7 @@ tokio-executor = "0.1"
 bui-demo-data = {path="bui-demo-data"}
 
 [build-dependencies]
-bui-backend-codegen = {version = "0.1.4", default-features = false, path="../codegen"}
+bui-backend-codegen = {version = "0.7", default-features = false, path="../codegen"}
 
 [features]
 default = ["bundle_files", "frontend_js"]
