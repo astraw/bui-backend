@@ -1,11 +1,18 @@
 use ::hyper;
+use thiserror::Error;
 
 /// Possible errors
-#[derive(Fail, Debug)]
+#[derive(Error,Debug)]
 pub enum Error {
+    /// A non-local IP address requires a token
+    #[error("non-localhost address requires pre-shared token")]
+    NonLocalhostRequiresPreSharedToken,
     /// A wrapped error from the hyper crate
-    #[fail(display = "{}", _0)]
-    Hyper(#[cause] hyper::Error),
+    #[error("hyper error `{0}`")]
+    Hyper(hyper::Error),
+    /// An error that occurred with an event stream.
+    #[error("rx event")]
+    RxEvent,
 }
 
 impl From<hyper::Error> for Error {

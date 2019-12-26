@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>BUI Backend, Seed Frontend</title>
+    </head>
+    <body>
+        <div id="app">
+          <!-- The WASM app will draw in this div. -->
+        </div>
+        <noscript>
+            ❌ Error: your browser does not support JavaScript. ❌
+        </noscript>
+        <script type='text/javascript'>
+          // Check if WebAssembly is supported. Code from
+          // https://stackoverflow.com/questions/47879864 .
+          const supported = (() => {
+              try {
+                  if (typeof WebAssembly === "object"
+                      && typeof WebAssembly.instantiate === "function") {
+                      const module = new WebAssembly.Module(Uint8Array.of(0x0, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00));
+                      if (module instanceof WebAssembly.Module)
+                          return new WebAssembly.Instance(module) instanceof WebAssembly.Instance;
+                  }
+              } catch (e) {
+              }
+              return false;
+          })();
+
+          if (!supported) {
+              alert("WebAssemly is not supported. This program will not run.");
+          }
+        </script>
+
+        <!-- Note the usage of `type=module` here as this is an ES6 module -->
+        <script type="module">
+          // https://rustwasm.github.io/docs/wasm-bindgen/examples/without-a-bundler.html
+          import init from './bui_demo_frontend_seed.js';
+          async function run() {
+            await init();
+          }
+          run();
+        </script>
+
+        <script type='text/javascript'>
+            function _remove_token_from_url() {
+              if (window.location.search.length <= 1) {
+                return;
+              }
+              var search_parameters = window.location.search.slice(1).split('&');
+              for (var i = 0; i < search_parameters.length; i++) {
+                if (search_parameters[i].split('=')[0] === 'token') {
+                  // remote token from search parameters
+                  search_parameters.splice(i, 1);
+                  var new_search = '';
+                  if (search_parameters.length) {
+                    new_search = '?' + search_parameters.join('&');
+                  }
+                  var new_url = window.location.origin +
+                                window.location.pathname +
+                                new_search +
+                                window.location.hash;
+                  window.history.replaceState({}, "", new_url);
+                  return;
+                }
+              }
+            }
+            _remove_token_from_url();
+        </script>
+
+    </body>
+</html>

@@ -6,10 +6,29 @@ for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/
 
 ## unreleased
 
+### Changed
+
+* Require rust 1.39 and use async/await and rust 2018 edition.
+* Update to `tokio` 0.2.
+* Update to `hyper` 0.13.
+* Use the `async-change-tracker` crate instead of `raii-change-tracker`. The new
+  `ChangeTracker` type allows changing the owned value using closures and
+  notifies listeners just after the closure completes.
+* `walkdir`, `includedir`, and `includedir_codegen` crates only used when the
+  `bundle_files` feature is used.
+* Drop elm, yew and stdweb frontends in `bui-demo`. Add seed frontend.
+* Simplify wire format for callback data to contain only a JSON payload.
+* Automatically serialize/deserialize wire data frontend within bui-backend.
+  Previously, this had to be done in client code. This is automatic in the
+  backend and can also be done automatically in rust frontends if the
+  `bui-backend-types` crate is used, as shown in the demo.
+
 ### Added
 
 * Make compile-time error more readable when compiling codegen
   crate without required feature flag.
+
+(There was no 0.7 release. This version number was used for internal testing.)
 
 ## [0.6.0] - 2018-04-19
 

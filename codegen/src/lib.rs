@@ -1,7 +1,5 @@
-#[cfg(feature = "bundle_files")]
-extern crate includedir_codegen;
-#[cfg(feature = "bundle_files")]
-extern crate walkdir;
+//! build-time code generation for the `bui-backend` crate
+#![deny(missing_docs)]
 
 use std::io::Write;
 use std::path::Path;
@@ -31,21 +29,21 @@ fn create_codegen_file<P, Q>(files_dir: P, codegen_fname: Q) -> Result<(), std::
     let required: std::path::PathBuf = files_dir.as_ref().join("index.html");
     if !entries.contains(&required) {
         return Err(std::io::Error::new(std::io::ErrorKind::Other,
-                                       format!("no {:?} file (hint: run make in elm_frontend)",
+                                       format!("no {:?} file",
                                                required)));
     }
 
     let codegen_fname_str = format!("{}", codegen_fname.as_ref().display());
     // Write the contents of the files.
     includedir_codegen::start("PUBLIC")
-        .dir(files_dir, includedir_codegen::Compression::Gzip)
+        .dir(files_dir, includedir_codegen::Compression::None)
         .build(&codegen_fname_str)?;
     Ok(())
 }
 
 /// Create an empty file (`codegen_fname`).
 #[cfg(feature = "serve_files")]
-fn create_codegen_file<P, Q>(_: P, codegen_fname: Q) -> Result<(), Box<Error>>
+fn create_codegen_file<P, Q>(_: P, codegen_fname: Q) -> Result<(), Box<dyn Error>>
     where P: AsRef<Path>,
           Q: AsRef<Path>
 {
@@ -68,7 +66,7 @@ fn create_codegen_file<P, Q>(_: P, codegen_fname: Q) -> Result<(), Box<Error>>
 
 /// Update the codegen file (`codegen_fname`) to include
 /// the `Config`.
-fn include_config<P, Q>(files_dir: P, codegen_fname: Q) -> Result<(), Box<Error>>
+fn include_config<P, Q>(files_dir: P, codegen_fname: Q) -> Result<(), Box<dyn Error>>
     where P: AsRef<Path>,
           Q: AsRef<Path>
 {
@@ -96,13 +94,14 @@ fn include_config<P, Q>(files_dir: P, codegen_fname: Q) -> Result<(), Box<Error>
     Ok(())
 }
 
-/// Write a file `generated_path` which would should include
-/// with the `include!` directive into your rust source code.
-/// This should be called from the `build.rs` script in your crate.
-/// This will define the variable `BUI_BACKEND_CONFIG` which should
-/// be passed to `bui_backend::BuiBackend::new()` to configure it
-/// correctly. See the `demo_js` and `demo_elm` for example usage.
-pub fn codegen<P, Q>(files_dir: P, generated_path: Q) -> Result<(), Box<Error>>
+/// Write a file at the location specified by `generated_path`.
+///
+/// This file should be included with the `include!` directive into your rust
+/// source code. This should be called from the `build.rs` script in your crate.
+/// This will define the variable `BUI_BACKEND_CONFIG` which should be passed to
+/// `bui_backend::BuiBackend::new()` to configure it correctly. See the
+/// `bui-demo` for example usage.
+pub fn codegen<P, Q>(files_dir: P, generated_path: Q) -> Result<(), Box<dyn Error>>
     where P: AsRef<Path>,
           Q: AsRef<Path>
 {

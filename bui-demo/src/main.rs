@@ -1,45 +1,51 @@
-#[macro_use]
-extern crate failure;
-#[macro_use]
-extern crate log;
-extern crate env_logger;
-extern crate raii_change_tracker;
-extern crate bui_backend;
-#[cfg(feature = "bundle_files")]
-extern crate includedir;
-#[cfg(feature = "bundle_files")]
-extern crate phf;
-extern crate serde_json;
-extern crate clap;
-extern crate hyper;
-extern crate dotenv;
-extern crate futures;
-extern crate tokio_core;
-extern crate bui_demo_data;
-
-use failure::Error;
-
 use std::net::ToSocketAddrs;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use raii_change_tracker::DataTracker;
+use parking_lot::RwLock;
+
+use async_change_tracker::ChangeTracker;
+use bui_backend::AccessControl;
 use bui_backend::highlevel::{BuiAppInner, create_bui_app_inner};
+use bui_backend_types::CallbackDataAndSession;
 
-use futures::{Future, Stream};
-use bui_demo_data::Shared;
+use bui_demo_data::{Shared, Callback};
+
+#[derive(Debug)]
+struct Error {
+    kind: ErrorKind,
+}
+
+#[derive(Debug)]
+enum ErrorKind {
+    BuiBackend(bui_backend::Error),
+    Raw(String),
+}
+
+impl From<ErrorKind> for Error {
+    fn from(kind: ErrorKind) -> Self {
+        Self { kind }
+    }
+}
+
+impl From<bui_backend::Error> for Error {
+    fn from(orig: bui_backend::Error) -> Self {
+        let kind = ErrorKind::BuiBackend(orig);
+        Self { kind }
+    }
+}
+
 
 // Include the files to be served and define `fn get_default_config()`.
-include!(concat!(env!("OUT_DIR"), "/public.rs")); // Despite slash, this does work on Windows.
+include!(concat!(env!("OUT_DIR"), "/public.rs")); // Despite slash, this works on Windows.
 
 /// The structure that holds our app data
 struct MyApp {
-    inner: BuiAppInner<Shared>,
+    inner: BuiAppInner<Shared, Callback>,
 }
 
 fn address( matches: &clap::ArgMatches ) -> std::net::SocketAddr {
-    let host = matches.value_of( "host" ).unwrap();
-    let port = matches.value_of( "port" ).unwrap();
-    format!( "{}:{}", host, port ).to_socket_addrs().unwrap().next().unwrap()
+    let address = matches.value_of( "address" ).unwrap();
+    address.to_socket_addrs().unwrap().next().unwrap()
 }
 
 fn is_loopback(addr_any: &std::net::SocketAddr) -> bool {
@@ -60,9 +66,10 @@ fn jwt_secret(matches: &clap::ArgMatches, required: bool) -> Result<Vec<u8>,Erro
         Some(secret) => Ok(secret),
         None => {
             if required {
-                Err(format_err!("The --jwt-secret argument must be passed or the JWT_SECRET environment \
-                variable must be set when not using loopback interface."))
+                Err(ErrorKind::Raw(format!("The --jwt-secret argument must be passed or the JWT_SECRET environment \
+                variable must be set when not using loopback interface.")).into())
             } else {
+                // insecure secret when using loopback interface
                 Ok(b"jwt_secret".to_vec())
             }
         }
@@ -71,10 +78,11 @@ fn jwt_secret(matches: &clap::ArgMatches, required: bool) -> Result<Vec<u8>,Erro
 
 impl MyApp {
     /// Create our app
-    fn new(secret: &[u8], addr: &std::net::SocketAddr, config: Config) -> Result<Self, Error> {
+    fn new(auth: AccessControl, config: Config) -> Result<Self, Error> {
+    // fn new(auth: AccessControl, config: Config) -> Result<Self, Error> {
 
         // Create our shared state.
-        let shared_store = Arc::new(Mutex::new(DataTracker::new(Shared {
+        let shared_store = Arc::new(RwLock::new(ChangeTracker::new(Shared {
                                                 is_recording: false,
                                                 counter: 0,
                                                 name: "".into(),
@@ -82,78 +90,65 @@ impl MyApp {
 
         // Create `inner`, which takes care of the browser communication details for us.
         let chan_size = 10;
-        let (_, mut inner) =
-            create_bui_app_inner(&secret, shared_store, &addr, config, chan_size, "/events")?;
+        let (_, mut inner) = create_bui_app_inner(None, &auth,
+            shared_store, config, chan_size, "/events", Some("bui_backend".to_string()))?;
 
         // Make a clone of our shared state Arc which will be moved into our callback handler.
         let tracker_arc2 = inner.shared_arc().clone();
 
         // Create a Stream to handle callbacks from clients.
-        let callback_rx_future = inner
-            .add_callback_listener(10) // max number of callbacks to buffer
-            .for_each(move |msg| {
+        inner.set_callback_listener(Box::new(move |msg: CallbackDataAndSession<Callback>| {
+            // This closure is the callback handler called whenever the
+            // client browser sends us something.
 
-                // This closure is the callback handler called whenever the
-                // client browser sends us something.
+            // Get access to our shared state so we can modify it based on
+            // the browser's callback.
+            let mut shared = tracker_arc2.write();
 
-                // Get access to our shared state so we can modify it based on
-                // the browser's callback.
-                let mut shared = tracker_arc2.lock().unwrap();
-
-                // All callbacks have the `name` field.
-                match msg.name.as_ref() {
-                    "set_is_recording" => {
-                        // All callbacks also have the `args` field. Here, take
-                        // generic json value and convert it to a bool.
-                        match serde_json::from_value::<bool>(msg.args) {
-                            Ok(bool_value) => {
-                                // Update our shared store with the value received.
-                                shared.as_tracked_mut().is_recording = bool_value;
-                            },
-                            Err(e) => {
-                                error!("could not cast json value to bool: {:?}", e);
-                            },
-                        };
-                    },
-                    "set_name" => {
-                        // Take the generic `args` and convert it to a String.
-                        match serde_json::from_value::<String>(msg.args) {
-                            Ok(name) => {
-                                // Update our shared store with the value received.
-                                shared.as_tracked_mut().name = name;
-                            },
-                            Err(e) => {
-                                error!("could not cast json value to String: {:?}", e);
-                            },
-                        };
-                    },
-                    name => {
-                        // This is an error case. Log it. (And do not take down the server.)
-                        error!("callback with unknown name: {:?}", name);
-                    },
-                }
-                futures::future::ok(())
-            });
-
-        // Add our future into the event loop created by hyper.
-        inner.hyper_server().handle().spawn(callback_rx_future);
+            match msg.payload {
+                Callback::SetIsRecording(bool_value) => {
+                    // Update our shared store with the value received.
+                    shared.modify(|shared| shared.is_recording = bool_value);
+                },
+                Callback::SetName(name) => {
+                    // Update our shared store with the value received.
+                    shared.modify(|shared| shared.name = name);
+                },
+            }
+            futures::future::ok(())
+        }));
 
         // Return our app.
-        Ok(MyApp { inner: inner })
+        Ok(MyApp { inner })
     }
 
-    /// Get a handle to our event loop.
-    fn handle(&self) -> tokio_core::reactor::Handle {
-        self.inner.hyper_server().handle()
-    }
-
-    /// Consume self and run forever.
-    fn run(self) -> std::result::Result<(), hyper::Error> {
-        self.inner.into_hyper_server().run()
-    }
 }
 
-fn run() -> Result<(),Error> {
+fn display_qr_url(url: &str) {
+    use std::io::{stdout, Write};
+    use qrcodegen::{QrCode, QrCodeEcc};
+
+    let qr = QrCode::encode_text(&url, QrCodeEcc::Low).unwrap();
+
+    let stdout = stdout();
+    let mut stdout_handle = stdout.lock();
+    writeln!(stdout_handle).unwrap();
+    for y in 0 .. qr.size() {
+        write!(stdout_handle, " ").unwrap();
+        for x in 0 .. qr.size() {
+            write!(stdout_handle, "{}", if qr.get_module(x, y) {
+                "██"
+            } else {
+                "  "
+            }).unwrap();
+        }
+        writeln!(stdout_handle).unwrap();
+    }
+    writeln!(stdout_handle).unwrap();
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Error> {
 
     // Set environment variables from `.env` file, if it exists.
     dotenv::dotenv().ok();
@@ -170,19 +165,12 @@ fn run() -> Result<(),Error> {
                 environment variable if unspecified.")
                  .global(true)
                  .takes_value(true))
-        .arg(clap::Arg::with_name( "host" )
-                .long( "host" )
+        .arg(clap::Arg::with_name( "address" )
+                .long( "address" )
                 .help( "Bind the server to this address")
-                .default_value("localhost")
-                .value_name( "HOST" )
+                .default_value("localhost:3410")
+                .value_name( "ADDRESS" )
                 .takes_value( true ))
-        .arg(clap::Arg::with_name( "port" )
-                .long( "port" )
-                .help( "Bind the server to this port, default 3410" )
-                .default_value("3410")
-                .value_name( "PORT" )
-                .takes_value( true )
-        )
         .get_matches();
 
     let http_server_addr = address(&matches);
@@ -195,50 +183,47 @@ fn run() -> Result<(),Error> {
     // and is pulled in here by the `include!` macro above.
     let config = get_default_config();
 
-    // Create our app.
-    let my_app = MyApp::new(&secret, &http_server_addr, config)?;
+    let auth = if http_server_addr.ip().is_loopback() {
+        AccessControl::Insecure(http_server_addr)
+    } else {
+        bui_backend::highlevel::generate_random_auth(http_server_addr, secret)?
+    };
+
+    // // Create our app.
+
+    let my_app = MyApp::new(auth, config)?;
 
     // Clone our shared data to move it into a closure later.
     let tracker_arc = my_app.inner.shared_arc().clone();
 
-    // Get a handle to our event loop.
-    let handle = my_app.handle();
-
     // Create a stream to call our closure every second.
-    let interval_stream: tokio_core::reactor::Interval =
-        tokio_core::reactor::Interval::new(std::time::Duration::from_millis(1000), &handle)
-            .unwrap();
+    let mut interval_stream = tokio::time::interval(
+        std::time::Duration::from_millis(1000));
 
-    let stream_future = interval_stream
-        .for_each(move |_| {
-                      // This closure is called once a second. Update a counter
-                      // in our shared data store.
-                      let mut shared_store = tracker_arc.lock().unwrap();
-                      let mut shared = shared_store.as_tracked_mut();
-                      shared.counter += 1;
-                      Ok(())
-                  })
-        .map_err(|e| {
-                     error!("interval error {:?}", e);
-                     ()
-                 });
+    let stream_future = async move {
+        loop {
+            // This is the main loop of the app. Here we do nothing except
+            // update a counter periodically.
 
-    // Put our stream into our event loop.
-    my_app.handle().spawn(stream_future);
+            // Wait for the next update time to arrive ...
+            interval_stream.tick().await;
 
-    println!("Listening on http://{}", http_server_addr);
+            // ... and modify our counter.
+            let mut shared_store = tracker_arc.write();
+            shared_store.modify(|shared| {
+                shared.counter += 1;
+            });
+        }
+    };
+
+    let maybe_url = my_app.inner.guess_url_with_token();
+    println!("Depending on IP address resolution, you may be able to login \
+        with this url: {}", maybe_url);
+    println!("This same URL as a QR code:");
+    display_qr_url(&maybe_url);
 
     // Run our app.
-    my_app.run()?;
-    Ok(())
-}
+    stream_future.await;
 
-fn main() {
-    match run() {
-        Ok(()) => {},
-        Err(e) => {
-            error!("{}, {}", e.cause(), e.backtrace());
-            std::process::exit(1);
-        }
-    }
+    Ok(())
 }

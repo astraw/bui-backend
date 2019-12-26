@@ -15,24 +15,10 @@ function update_dom(state) {
     element.appendChild(content);
     mirror.appendChild(element);
 
-    var toggle = document.getElementById("switch-1");
-    if (toggle.checked !== state.server_store.is_recording) {
-        var my_switch = document.getElementById("switch-1-label").MaterialSwitch;
-        if (state.server_store.is_recording) {
-            my_switch.on();
-        } else {
-            my_switch.off();
-        }
-    }
-
-    {
-        var record_progress = document.getElementById("record-progress");
-        if (state.server_store.is_recording) {
-            record_progress.classList.add('mdl-progress__indeterminate');
-        } else {
-            record_progress.classList.remove('mdl-progress__indeterminate');
-        }
-    }
+    var toggle = document.getElementById("toggle-recording-button");
+    toggle.onclick = function(event) {
+        send_message({SetIsRecording: !state.server_store.is_recording});
+    };
 
     var name_input = document.getElementById("name-input");
     if (name_input.value !== state.server_store.name) {
@@ -40,16 +26,11 @@ function update_dom(state) {
         var has_focus = Boolean(my_textfield.querySelector(':focus'));
         if (!has_focus) {
             name_input.value = state.server_store.name;
-            my_textfield.MaterialTextfield.checkDirty();
         }
     }
 }
 
-function send_message(name,args){
-    var msg = {
-        name,
-        args
-    };
+function send_message(msg){
     var buf = JSON.stringify(msg);
 
     var httpRequest = new XMLHttpRequest();
@@ -58,17 +39,14 @@ function send_message(name,args){
     httpRequest.send(buf);
 }
 
-document.getElementById("switch-1").onclick = function(event) {
-    send_message("set_is_recording", event.target.checked);
- };
 
 document.getElementById("name-input").addEventListener('blur',function(event) {
-    send_message("set_name", event.target.value);
+    send_message({SetName: event.target.value});
 });
 
 document.getElementById("name-input").addEventListener('keypress',function(event) {
     if (event.key == "Enter") {
-        send_message("set_name", event.target.value);
+        send_message({SetName: event.target.value});
         document.getElementById("name-input").blur();
     }
 });

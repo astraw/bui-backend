@@ -1,22 +1,29 @@
 //! Helpers for writing browser user interfaces (BUIs).
-//!
-//! The API in this module is likely to change as ergonomics get better.
-use lowlevel::{BuiService, ConnectionKeyType, SessionKeyType, EventChunkSender,
-               CallbackDataAndSession, Config, launcher, NewBuiService};
+use bui_backend_types::{ConnectionKey, SessionKey};
+use crate::lowlevel::{BuiService, EventChunkSender, Config, launcher};
+
 use {std, hyper, serde, serde_json, futures};
 
-use hyper::server::Http;
+use async_change_tracker::ChangeTracker;
 
-use raii_change_tracker::DataTracker;
-
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::collections::HashMap;
-use std::net::SocketAddr;
-use futures::{Future, Sink, Stream};
-use futures::sync::mpsc;
+
+use parking_lot::RwLock;
+use futures::{channel::mpsc, sink::SinkExt, stream::StreamExt,
+    future::FutureExt};
+use uuid::Uuid;
+
 use serde::Serialize;
 
-use ::Error;
+use hyper::server::conn::AddrStream;
+use hyper::service::make_service_fn;
+
+use bui_backend_types::AccessToken;
+
+use crate::Error;
+use crate::access_control;
+use crate::lowlevel::{CallbackFnType, NewEventStreamConnection};
 
 // ------
 
@@ -35,9 +42,9 @@ pub struct ConnectionEvent {
     /// The type of connection for this event.
     pub typ: ConnectionEventType,
     /// Identifier for the connecting session (one ber browser).
-    pub session_key: SessionKeyType,
+    pub session_key: SessionKey,
     /// Identifier for the connection (one ber tab).
-    pub connection_key: ConnectionKeyType,
+    pub connection_key: ConnectionKey,
     /// The path being requested (starts with `BuiService::events_prefix`).
     pub path: String,
 }
@@ -45,120 +52,210 @@ pub struct ConnectionEvent {
 // ------
 
 /// Maintain state within a BUI application.
-pub struct BuiAppInner<T>
-    where T: Clone + PartialEq + Serialize
+pub struct BuiAppInner<T,CB>
+    where
+        T: Clone + PartialEq + Serialize + Send,
+        CB: 'static + serde::de::DeserializeOwned + Clone + Send,
 {
-    i_shared_arc: Arc<Mutex<DataTracker<T>>>,
-    i_txers: Arc<Mutex<HashMap<ConnectionKeyType, (SessionKeyType, EventChunkSender, String)>>>,
-    i_bui_server: BuiService,
-    i_hyper_server: hyper::Server<NewBuiService, hyper::Body>,
+    i_shared_arc: Arc<RwLock<ChangeTracker<T>>>,
+    i_txers: Arc<RwLock<HashMap<ConnectionKey, (SessionKey, EventChunkSender, String)>>>,
+    i_bui_server: BuiService<CB>,
+    auth: access_control::AccessControl,
+    local_addr: std::net::SocketAddr,
 }
 
-impl<T> BuiAppInner<T>
-    where T: Clone + PartialEq + Serialize + 'static
+impl<'a,T,CB> BuiAppInner<T,CB>
+    where
+        T: Clone + PartialEq + Serialize + Send + 'static,
+        CB : serde::de::DeserializeOwned + Clone + Send + 'static,
 {
     /// Get reference counted reference to the underlying data store.
-    pub fn shared_arc(&self) -> &Arc<Mutex<DataTracker<T>>> {
+    pub fn shared_arc(&self) -> &Arc<RwLock<ChangeTracker<T>>> {
         &self.i_shared_arc
     }
 
     /// Get reference to to the underlying `BuiService`.
-    pub fn bui_service(&self) -> &BuiService {
+    pub fn bui_service(&self) -> &BuiService<CB> {
         &self.i_bui_server
     }
 
-    /// Get reference to the underlying hyper server.
-    pub fn hyper_server(&self) -> &hyper::Server<NewBuiService, hyper::Body> {
-        &self.i_hyper_server
+    /// Get our local IP address.
+    pub fn local_addr(&self) -> &std::net::SocketAddr {
+        &self.local_addr
     }
 
-    /// Drop self and return only the underlying hyper server.
-    pub fn into_hyper_server(self) -> hyper::Server<NewBuiService, hyper::Body> {
-        self.i_hyper_server
+    /// Get our access token.
+    pub fn token(&self) -> AccessToken {
+        self.auth.token()
     }
 
-    /// Get a stream of callback events.
-    pub fn add_callback_listener(&mut self,
-                                 channel_size: usize)
-                                 -> mpsc::Receiver<CallbackDataAndSession> {
-        self.i_bui_server.add_callback_listener(channel_size)
+    /// Attempt to get our URL.
+    ///
+    /// This may fail if, for example, the locally known IP address is
+    /// not the IP address that users will connect to.
+    pub fn guess_url_with_token(&self) -> String {
+        match self.auth.token() {
+            AccessToken::NoToken => {
+                format!("http://{}", self.local_addr)
+            },
+            AccessToken::PreSharedToken(ref tok) => {
+                format!("http://{}/?token={}",
+                    self.local_addr, tok)
+            },
+        }
+    }
+
+    /// Register a function to be called when the user makes a callback.
+    pub fn set_callback_listener(&mut self, f: CallbackFnType<CB>) -> Option<CallbackFnType<CB>> {
+        self.i_bui_server.set_callback_listener(f)
     }
 }
 
+/// Generate a random token
+pub fn generate_valid_token() -> String {
+    let my_uuid = Uuid::new_v4();
+    format!("{}", my_uuid)
+}
+
+/// Generate a random token and return access control information. Requires JWT secret.
+pub fn generate_random_auth(addr: std::net::SocketAddr, secret: Vec<u8>) -> Result<access_control::AccessControl, Error> {
+    generate_auth_with_token(addr, secret, generate_valid_token())
+}
+
+/// Return access control information given a token and a JWT secret.
+pub fn generate_auth_with_token(addr: std::net::SocketAddr, secret: Vec<u8>, token: String) -> Result<access_control::AccessControl, Error> {
+    let access_token = AccessToken::PreSharedToken(token);
+    let info = access_control::AccessInfo::new(addr, access_token, secret)?;
+    Ok(access_control::AccessControl::WithToken(info))
+}
+
 /// Factory function to create a new BUI application.
-pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
-                               shared_arc: Arc<Mutex<DataTracker<T>>>,
-                               addr: &SocketAddr,
+pub fn create_bui_app_inner<'a,T,CB>(
+                               shutdown_rx: Option<tokio::sync::oneshot::Receiver<()>>,
+                               auth: &access_control::AccessControl,
+                               shared_arc: Arc<RwLock<ChangeTracker<T>>>,
                                config: Config,
                                chan_size: usize,
-                               events_prefix: &str)
-                               -> Result<(mpsc::Receiver<ConnectionEvent>, BuiAppInner<T>), Error>
-    where T: Clone + PartialEq + Serialize + 'static
+                               events_prefix: &str,
+                               event_name: Option<String>,
+                            )
+                               -> Result<(mpsc::Receiver<ConnectionEvent>, BuiAppInner<T,CB>), Error>
+    where
+        T: Clone + PartialEq + Serialize + 'static + Send + Sync + Unpin,
+        CB : serde::de::DeserializeOwned + Clone + Send + 'static + Unpin,
 {
-    let (rx_conn, bui_server) = launcher(config, &jwt_secret, chan_size, events_prefix);
+
+    let (quit_trigger, valve) = stream_cancel::Valve::new();
+
+    let (rx_conn, bui_server) = launcher(config, &auth,
+        chan_size, events_prefix);
+
+    let bui_server: BuiService<CB> = bui_server; // type annotation
+
+    // This line is just to annotate the type
+    let rx_conn: mpsc::Receiver<NewEventStreamConnection> = rx_conn;
 
     let b2 = bui_server.clone();
 
-    let mbc = NewBuiService::new(Box::new(move || Ok(b2.clone())));
-    let hyper_server = Http::new().bind(&addr, mbc)?;
+    type MyError = std::io::Error; // anything that implements std::error::Error and Send
+
+    let new_service = make_service_fn(move |socket: &AddrStream| {
+        let _remote_addr = socket.remote_addr();
+        let b3 = b2.clone();
+        async move { Ok::<_,MyError>(b3.clone()) }
+    });
+
+    let addr = auth.bind_addr();
+
+    // this will fail unless there is a reactor already
+    let bound = hyper::Server::bind(addr);
+
+    let server = bound.serve(new_service);
+
+    let local_addr = server.local_addr();
+
+    let log_and_swallow_err = |r| match r {
+        Ok(_) => {}
+        Err(e) => {
+            error!("{} ({}:{})", e, file!(), line!());
+        }
+    };
+
+    if let Some(shutdown_rx) = shutdown_rx {
+        let graceful = server
+            .with_graceful_shutdown(async move {
+                shutdown_rx.await.ok();
+                quit_trigger.cancel();
+            });
+        tokio::spawn(Box::pin(graceful.map(log_and_swallow_err)));
+    } else {
+        quit_trigger.disable();
+        tokio::spawn(Box::pin(server.map(log_and_swallow_err)));
+    };
 
     let inner = BuiAppInner {
         i_shared_arc: shared_arc,
-        i_txers: Arc::new(Mutex::new(HashMap::new())),
+        i_txers: Arc::new(RwLock::new(HashMap::new())),
         i_bui_server: bui_server,
-        i_hyper_server: hyper_server,
+        auth: auth.clone(),
+        local_addr,
     };
 
-    // --- handle_connections future
-    let (new_conn_tx, new_conn_rx) = mpsc::channel(1); // TODO chan_size
+    // --- handle connections
+    let (new_conn_tx, new_conn_rx) = mpsc::channel(5); // TODO chan_size
 
     let shared_arc = inner.i_shared_arc.clone();
     let txers2 = inner.i_txers.clone();
-    let new_conn_tx2 = new_conn_tx.clone();
-    let handle_connections = rx_conn.for_each(move |conn_info| {
+    let mut new_conn_tx2 = new_conn_tx.clone();
+    let event_name2 = event_name.clone();
 
-        let chunk_sender = conn_info.chunk_sender;
-        let ckey = conn_info.session_key;
-        let connection_key = conn_info.connection_key;
+    let mut rx_conn_valve = valve.wrap(rx_conn);
 
-        // send current value on initial connect
-        let hc: hyper::Chunk = {
-            let shared = shared_arc.lock().unwrap();
-            create_event_source_msg(&shared.as_ref()).into()
-        };
+    let handle_connections_fut = async move {
+        while let Some(conn_info) = rx_conn_valve.next().await {
+            let chunk_sender = conn_info.chunk_sender;
+            let mut chunk_sender: EventChunkSender = chunk_sender; // type annotation only
+            let ckey = conn_info.session_key;
+            let connection_key = conn_info.connection_key;
 
-        let nct = new_conn_tx2.clone();
-        let typ = ConnectionEventType::Connect(chunk_sender.clone());
-        let session_key = ckey.clone();
-        let path = conn_info.path.clone();
-        match nct.send(ConnectionEvent {
-                           typ,
-                           session_key,
-                           connection_key,
-                           path,
-                       })
-                  .wait() {
-            Ok(_tx) => {}
-            Err(e) => {
-                info!("failed sending ConnectionEvent. probably no listener. {:?}",
-                      e);
+            // send current value on initial connect
+            let hc: hyper::body::Bytes = {
+                let shared = shared_arc.write();
+                create_event_source_msg(&shared.as_ref(), event_name2.as_ref().map(|x| x.as_str())).into()
+            };
+
+            let typ = ConnectionEventType::Connect(chunk_sender.clone());
+            let session_key = ckey.clone();
+            let path = conn_info.path.clone();
+            let path2 = conn_info.path.clone();
+
+            match new_conn_tx2.send(ConnectionEvent {
+                            typ,
+                            session_key,
+                            connection_key,
+                            path,
+                        }).await
+            {
+                Ok(()) => {}
+                Err(e) => {
+                    info!("failed sending ConnectionEvent. probably no listener. {:?}",
+                        e);
+                }
+            };
+
+            match chunk_sender.send(hc).await {
+                Ok(()) => {
+                    let mut txer_guard = txers2.write();
+                    txer_guard.insert(connection_key, (ckey, chunk_sender, path2));
+                }
+                Err(e) => {
+                    error!("failed to send value on initial connect: {:?}", e);
+                }
             }
         };
+    };
 
-        match chunk_sender.send(Ok(hc)).wait() {
-            Ok(chunk_sender) => {
-                let mut txer_guard = txers2.lock().unwrap();
-                txer_guard.insert(connection_key, (ckey, chunk_sender, conn_info.path));
-                futures::future::ok(())
-            }
-            Err(e) => {
-                error!("failed to send value on initial connect: {:?}", e);
-                futures::future::err(())
-            }
-        }
-    });
-    inner.i_hyper_server.handle().spawn(handle_connections);
-
+    tokio::spawn(Box::pin(handle_connections_fut));
 
     // --- push changes
 
@@ -167,30 +264,34 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
     // Create a Stream to handle updates to our shared store.
     let change_listener = {
         let rx = {
-            let mut shared = shared_store2.lock().unwrap();
-            shared.add_listener()
+            let shared = shared_store2.write();
+            shared.get_changes(10) // capacity of channel is 10 changes
         };
-        let rx = rx.for_each(move |x| {
-            let (_old, new_value) = x;
-            {
-                let mut sources = txers.lock().unwrap();
+        let mut rx_valve = valve.wrap(rx);
+        async move {
+            while let Some((_old, new_value)) = rx_valve.next().await {
+                // We need to hold the loc on txers only briefly, so we do this.
+                let sources_drain = {
+                    let mut sources = txers.write();
+                    sources.drain().collect::<Vec<_>>()
+                };
+
                 let mut restore = vec![];
 
-                let event_source_msg = create_event_source_msg(&new_value);
+                let event_source_msg = create_event_source_msg(&new_value, event_name.as_ref().map(|x| x.as_str()));
 
-                for (connection_key, (session_key, tx, path)) in sources.drain() {
+                for (connection_key, (session_key, mut tx, path)) in sources_drain {
 
                     let chunk = event_source_msg.clone().into();
-
-                    match tx.send(Ok(chunk)).wait() {
-                        Ok(tx) => {
+                    match tx.send(chunk).await {
+                        Ok(()) => {
                             restore.push((connection_key, (session_key, tx, path)));
                         }
                         Err(e) => {
                             info!("Failed to send data to event stream, client \
                                     probably disconnected. {:?}",
-                                  e);
-                            let nct = new_conn_tx.clone();
+                                e);
+                            let mut nct = new_conn_tx.clone();
                             let typ = ConnectionEventType::Disconnect;
                             let ce = ConnectionEvent {
                                 typ,
@@ -198,12 +299,12 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
                                 connection_key,
                                 path,
                             };
-                            match nct.send(ce).wait() {
-                                Ok(_tx) => {}
+                            match nct.send(ce).await {
+                                Ok(()) => {}
                                 Err(e) => {
                                     info!("Failed to send ConnectionEvent, \
                                     probably no listener. {:?}",
-                                          e);
+                                        e);
                                 }
                             };
 
@@ -211,20 +312,22 @@ pub fn create_bui_app_inner<T>(jwt_secret: &[u8],
                     };
                 }
                 for (connection_key, element) in restore.into_iter() {
+                    let mut sources = txers.write();
                     sources.insert(connection_key, element);
                 }
             }
-            let res: std::result::Result<(), ()> = Ok(());
-            res
-        });
-        rx
+        }
     };
-    inner.i_hyper_server.handle().spawn(change_listener);
+    tokio::spawn(Box::pin(change_listener));
 
     Ok((new_conn_rx, inner))
 }
 
-fn create_event_source_msg<T: serde::Serialize>(value: &T) -> String {
+fn create_event_source_msg<T: serde::Serialize>(value: &T, event_name: Option<&str>) -> String {
     let buf = serde_json::to_string(&value).expect("encode");
-    format!("event: bui_backend\ndata: {}\n\n", buf)
+    if let Some(event_name) = event_name {
+        format!("event: {}\ndata: {}\n\n", event_name, buf)
+    } else {
+        format!("data: {}\n\n", buf)
+    }
 }
