@@ -4,7 +4,7 @@ All user visible changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/), as described
 for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/text/1105-api-evolution.md)
 
-## unreleased
+## [0.8.0] - 2019-12-26
 
 ### Changed
 
@@ -121,6 +121,7 @@ for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/
 
 * Initial release
 
+[0.8.0]: https://github.com/astraw/bui-backend/compare/bui-backend/0.6.0...bui-backend/0.8.0
 [0.6.0]: https://github.com/astraw/bui-backend/compare/bui-backend/0.5.0...bui-backend/0.6.0
 [0.5.0]: https://github.com/astraw/bui-backend/compare/bui-backend/0.4.1...bui-backend/0.5.0
 [0.4.1]: https://github.com/astraw/bui-backend/compare/bui-backend/0.4.0...bui-backend/0.4.1
