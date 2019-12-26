@@ -5,9 +5,8 @@ bui-backend - Brower User Interfaces (BUIs) with Tokio
 [![Version][version-img]][version-url] [![Status][status-img]][status-url]
 [![Doc][doc-img]][doc-url]
 
-
-[status-img]: https://travis-ci.org/astraw/bui-backend.svg?branch=master
-[status-url]: https://travis-ci.org/astraw/bui-backend
+[status-img]: https://github.com/astraw/bui-backend/workflows/CI/badge.svg
+[status-url]: https://github.com/astraw/bui-backend/actions
 [bui-demo]: https://github.com/astraw/bui-backend/tree/master/bui-demo
 [doc-img]: https://docs.rs/bui-backend/badge.svg
 [doc-url]: https://docs.rs/bui-backend/
@@ -20,10 +19,9 @@ becomes your GUI. The API is based on futures and reactively pushes state to
 the browser. Assets can be served from the filesystem or bundled in the
 executable. The server provides an "escape hatch" to allow server-client
 communication outside of bui-backend. [The demo][bui-demo] includes a Rust
-web assembly (wasm) frontend using the yew framework, a Rust web assembly
-(wasm) frontend using stdweb, and a plain Javascript frontend. Together,
-this lets you ship an application written in Rust as a single file with a
-browser-based UI.
+web assembly (wasm) frontend using the [seed](https://crates.io/crates/seed)
+framework and a plain Javascript frontend. Together, this lets you ship an
+application written in Rust as a single file with a browser-based UI.
 
 The operating principle is that the server runs an HTTP server (based on
 [hyper](https://hyper.rs)) to which the browser connects. The initial page
@@ -50,9 +48,9 @@ data is encoded as JSON.
 
 ##### Demo
 
- A demo is available with frontends written in Rust web assembly (plain wasm
- or yew framework) and Javascript. (Use [`bui-demo`][bui-demo] with
- `frontend_stdweb`, `frontend_yew`, or `frontend_js` feature.)
+ A demo is available with frontends written in Rust web assembly using the
+seed framework and plain Javascript. (Use [`bui-demo`][bui-demo] with
+ `frontend_seed`, or `frontend_js` feature.)
 
 ##### Potential improvements
 
