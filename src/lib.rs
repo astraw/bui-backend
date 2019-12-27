@@ -31,7 +31,7 @@
 //!
 //! #### Features
 //!
-//!  - Uses the [`async-change-tracker::ChangeTracker`](../async_change_tracker/struct.ChangeTracker.html)
+//!  - Uses [`async-change-tracker`](https://crates.io/crates/async-change-tracker)
 //!    type to ensure that server state changes are reactively sent to all
 //!    connected frontends.
 //!  - To keep things simple, server state is shared with all connected clients.
@@ -54,7 +54,7 @@
 //!
 //!  - Add example with user login.
 //!  - Send minimal differences when state changes, likely by improving
-//!    [`async-change-tracker`](../async_change_tracker/index.html).
+//!    [`async-change-tracker`](https://crates.io/crates/async-change-tracker).
 //!  - Implement more sophisticated state-sharing allowing partial views and
 //!    minimal updates.
 //!  - Use
