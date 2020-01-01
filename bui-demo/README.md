@@ -1,4 +1,6 @@
-# bui-demo - demonstration of bui-backend
+# bui-demo
+
+## demonstration of bui-backend
 
 This is a self contained demonstration of
 [bui-backend](https://github.com/astraw/bui-backend), a Browser User Interface
@@ -45,3 +47,6 @@ Frontend is built with `wasm-pack`. (In development, `wasm-pack 0.8.11` was
 used.) Install from https://rustwasm.github.io/wasm-pack/installer/ .
 
     cd frontend_seed && ./build.sh
+
+
+License: MIT/Apache-2.0
