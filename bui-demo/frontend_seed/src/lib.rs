@@ -92,7 +92,7 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
     }
 }
 
-fn send_message(payload: &Callback) -> impl Future<Item = Msg, Error = Msg> {
+fn send_message(payload: &Callback) -> impl Future<Output = Result<Msg,Msg>> {
     let url = "callback";
     fetch::Request::new(url)
         .method(fetch::Method::Post)
