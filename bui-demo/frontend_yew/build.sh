@@ -1,8 +1,10 @@
 #!/bin/bash -x
 set -o errexit
 
-cargo web build --release
+# Install wasm-pack from here https://rustwasm.github.io/wasm-pack/installer/
 
-mkdir -p dist
-cp -a target/wasm32-unknown-unknown/release/bui-demo-frontend-yew.* dist/
-cp -a static/* dist/
+# Let wasm-pack build everything and put it in `pkg/`.
+wasm-pack build --target web
+
+# Copy our static stuff and put it in `pkg/`, too.
+rsync --checksum static/* pkg/

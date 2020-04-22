@@ -1,10 +1,23 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <title>BUI Backend, Yew Frontend</title>
-    </head>
-    <body>
-        <script src="bui-demo-frontend-yew.js"></script>
-    </body>
+
+<head>
+    <meta charset="utf-8">
+    <title>BUI Backend, Yew Frontend</title>
+</head>
+
+<body>
+
+    <!-- Note the usage of `type=module` here as this is an ES6 module -->
+    <script type="module">
+        // https://rustwasm.github.io/docs/wasm-bindgen/examples/without-a-bundler.html
+        import init from './bui_demo_frontend_yew.js';
+        async function run() {
+            await init();
+        }
+        run();
+    </script>
+
+</body>
+
 </html>

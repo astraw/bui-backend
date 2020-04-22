@@ -1,9 +1,23 @@
-use stdweb::Value;
-use yew::format::Restorable;
-use yew::html::Callback;
+//! Event stream handling
+use std::fmt;
+
+use gloo::events::EventListener;
+use wasm_bindgen::JsCast;
+use web_sys::{Event, EventSource, MessageEvent};
+use yew::callback::Callback;
+use yew::format::{FormatError, Text};
 use yew::services::Task;
 
-#[derive(Debug)]
+/// A status of an event source connection. Used for status notification.
+#[derive(PartialEq, Debug)]
+pub enum EventSourceStatus {
+    /// Fired when an event source connection was opened.
+    Open,
+    /// Fired when an event source connection had an error.
+    Error,
+}
+
+#[derive(PartialEq, Debug)]
 pub enum ReadyState {
     Connecting,
     Open,
@@ -11,79 +25,114 @@ pub enum ReadyState {
 }
 
 /// A handle to control current event source connection. Implements `Task` and could be canceled.
-pub struct EventSourceTask(Option<Value>);
-
-/// An event source service attached to a user context.
-pub struct EventSourceService {
+pub struct EventSourceTask {
+    event_source: EventSource,
+    _notification: Callback<EventSourceStatus>,
+    _listeners: [EventListener; 3],
 }
 
-impl EventSourceService {
+impl EventSourceTask {
+    fn new(
+        event_source: EventSource,
+        notification: Callback<EventSourceStatus>,
+        listener_0: EventListener,
+        listeners: [EventListener; 2],
+    ) -> Result<EventSourceTask, &'static str> {
+        let [listener_1, listener_2] = listeners;
+        Ok(EventSourceTask {
+            event_source,
+            _notification: notification,
+            _listeners: [listener_0, listener_1, listener_2],
+        })
+    }
 
+    pub fn ready_state(&self) -> ReadyState {
+        match self.event_source.ready_state() {
+            web_sys::EventSource::CONNECTING => ReadyState::Connecting,
+            web_sys::EventSource::OPEN => ReadyState::Open,
+            web_sys::EventSource::CLOSED => ReadyState::Closed,
+            _ => panic!("unexpected ready state"),
+        }
+    }
+}
+
+impl fmt::Debug for EventSourceTask {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("EventSourceTask")
+    }
+}
+
+/// An event source service attached to a user context.
+#[derive(Default, Debug)]
+pub struct EventSourceService {}
+
+impl EventSourceService {
     /// Creates a new service instance connected to `App` by provided `sender`.
     pub fn new() -> Self {
-        Self { }
+        Self {}
     }
 
     /// Connects to a server by an event source connection. Needs two functions to generate
     /// data and notification messages.
-    pub fn connect<OUT: 'static>(&mut self, url: &str, event_name: &str, callback: Callback<OUT>, notification: Callback<ReadyState>) -> EventSourceTask
+    pub fn connect<OUT: 'static, S>(
+        &mut self,
+        url: &str,
+        event_type: S,
+        callback: Callback<OUT>,
+        notification: Callback<EventSourceStatus>,
+    ) -> Result<EventSourceTask, &str>
     where
-        OUT: From<Restorable>,
+        S: Into<std::borrow::Cow<'static, str>>,
+        OUT: From<Text>,
     {
-        let callback = move |s: String| {
-            let data = Ok(s);
+        let event_source = EventSource::new(url);
+        if event_source.is_err() {
+            return Err("Failed to created event source with given URL");
+        }
+
+        let event_source = event_source.map_err(|_| "failed to build event source")?;
+
+        let notify = notification.clone();
+        let listener_open = move |_: &Event| {
+            notify.emit(EventSourceStatus::Open);
+        };
+        let notify = notification.clone();
+        let listener_error = move |_: &Event| {
+            notify.emit(EventSourceStatus::Error);
+        };
+
+        let listeners = [
+            EventListener::new(&event_source, "open", listener_open),
+            EventListener::new(&event_source, "error", listener_error),
+        ];
+
+        let listener = EventListener::new(&event_source, event_type, move |event: &Event| {
+            let event = event.dyn_ref::<MessageEvent>().unwrap();
+            let text = event.data().as_string();
+
+            let data = if let Some(text) = text {
+                Ok(text)
+            } else {
+                Err(FormatError::ReceivedBinaryForText.into())
+            };
+
             let out = OUT::from(data);
             callback.emit(out);
-        };
-        let notify_callback = move |code: u32| {
-            let code = {
-                match code {
-                    0 => ReadyState::Connecting,
-                    1 => ReadyState::Open,
-                    2 => ReadyState::Closed,
-                    x => panic!("unknown ready state code: {}", x),
-                }
-            };
-            notification.emit(code);
-        };
-        let handle = js! {
-            var source = new EventSource(@{url});
-            var callback = @{callback};
-            var notify_callback = @{notify_callback};
-            source.addEventListener("open", function (event) {
-                notify_callback(source.readyState);
-            });
-            source.addEventListener("error", function (event) {
-                notify_callback(source.readyState);
-            });
-            source.addEventListener(@{event_name}, function (event) {
-                callback(event.data);
-            });
-            return {
-                source,
-            };
-        };
-        EventSourceTask(Some(handle))
+        });
+        EventSourceTask::new(event_source, notification, listener, listeners)
     }
 }
 
 impl Task for EventSourceTask {
     fn is_active(&self) -> bool {
-        self.0.is_some()
-    }
-    fn cancel(&mut self) {
-        let handle = self.0.take().expect("tried to close event source twice");
-        js! { @(no_return)
-            var handle = @{handle};
-            handle.source.close();
-        }
+        self.ready_state() == ReadyState::Open
     }
 }
 
 impl Drop for EventSourceTask {
     fn drop(&mut self) {
         if self.is_active() {
-            self.cancel();
+            self.event_source.close()
         }
     }
 }
