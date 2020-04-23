@@ -46,9 +46,9 @@
 //!
 //! #### Demo
 //!
-//!  A demo is available with frontends written in Rust web assembly using the
+//! A demo is available with frontends written in Rust web assembly using the
 //! seed framework and plain Javascript. (Use [`bui-demo`][bui-demo] with
-//!  `frontend_seed`, or `frontend_js` feature.)
+//! `frontend_yew`, `frontend_seed`, or `frontend_js` feature.)
 //!
 //! #### Potential improvements
 //!
