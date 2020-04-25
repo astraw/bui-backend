@@ -1,13 +1,13 @@
 #[macro_use]
 extern crate seed;
-use seed::prelude::*;
-use seed::fetch;
 use futures::Future;
+use seed::fetch;
+use seed::prelude::*;
 
 use wasm_bindgen::JsCast;
-use web_sys::{MessageEvent, EventSource};
+use web_sys::{EventSource, MessageEvent};
 
-use bui_demo_data::{Shared, Callback};
+use bui_demo_data::{Callback, Shared};
 
 const ENTER_KEY: u32 = 13;
 
@@ -42,14 +42,12 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
     match msg {
         Msg::ServerMessage(msg_event) => {
             let txt = msg_event.data().as_string().unwrap();
-            let response: Result<Shared,_> = serde_json::from_str(&txt);
+            let response: Result<Shared, _> = serde_json::from_str(&txt);
             match response {
                 Ok(data_result) => {
                     model.shared = Some(data_result);
                 }
-                Err(e) => {
-                    error!("error in response", e)
-                }
+                Err(e) => error!("error in response", e),
             }
         }
         Msg::Connected(_) => {
@@ -92,13 +90,12 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
     }
 }
 
-fn send_message(payload: &Callback) -> impl Future<Output = Result<Msg,Msg>> {
+fn send_message(payload: &Callback) -> impl Future<Output = Result<Msg, Msg>> {
     let url = "callback";
     fetch::Request::new(url)
         .method(fetch::Method::Post)
         .send_json(payload)
         .fetch_json_data(Msg::Fetched)
-
 }
 
 // -----------------------------------------------------------------------------
@@ -108,34 +105,21 @@ fn send_message(payload: &Callback) -> impl Future<Output = Result<Msg,Msg>> {
 fn view(model: &Model) -> Node<Msg> {
     div![
         h3!["BUI - Rust Backend, Seed Frontend - Demo"],
-        p![
-            button![
-                simple_ev(Ev::Click, Msg::ToggleRecording),
-                "Toggle Recording"
+        p![button![
+            simple_ev(Ev::Click, Msg::ToggleRecording),
+            "Toggle Recording"
+        ],],
+        p![label![
+            "Name ",
+            input![
+                attrs! {At::Value => &model.local_name},
+                simple_ev(Ev::Blur, Msg::SendName),
+                input_ev(Ev::Input, Msg::UpdateName),
+                keyboard_ev(Ev::KeyDown, move |ev| Msg::EditKeyDown(ev.key_code())),
             ],
-        ],
-        p![
-            label![
-                "Name ",
-                input![
-                    attrs! {At::Value => &model.local_name},
-                    simple_ev(Ev::Blur, Msg::SendName),
-                    input_ev(Ev::Input, Msg::UpdateName),
-                    keyboard_ev(Ev::KeyDown, move |ev| Msg::EditKeyDown(
-                        ev.key_code()
-                    )),
-                ],
-            ],
-        ],
-        p![
-            h4!["backend state"],
-            div![
-                &format!("{:?}", model.shared),
-            ]
-        ],
-        p![
-            &format!("connection state: {}", model.connection_state),
-        ],
+        ],],
+        p![h4!["backend state"], div![&format!("{:?}", model.shared),]],
+        p![&format!("connection state: {}", model.connection_state),],
     ]
 }
 
@@ -151,15 +135,16 @@ fn after_mount(_: Url, orders: &mut impl Orders<Msg>) -> AfterMount<Model> {
     register_es_handler("bui_backend", Msg::ServerMessage, &es, orders);
     register_es_handler("error", Msg::Error, &es, orders);
 
-    AfterMount::new(Model {shared, es, local_name: "".to_string(), connection_state})
+    AfterMount::new(Model {
+        shared,
+        es,
+        local_name: "".to_string(),
+        connection_state,
+    })
 }
 
-fn register_es_handler<T, F>(
-    type_: &str,
-    msg: F,
-    es: &EventSource,
-    orders: &mut impl Orders<Msg>,
-) where
+fn register_es_handler<T, F>(type_: &str, msg: F, es: &EventSource, orders: &mut impl Orders<Msg>)
+where
     T: wasm_bindgen::convert::FromWasmAbi + 'static,
     F: Fn(T) -> Msg + 'static,
 {
@@ -169,7 +154,8 @@ fn register_es_handler<T, F>(
         app.update(msg_mapper(msg(data)));
     });
 
-    es.add_event_listener_with_callback(type_, closure.as_ref().unchecked_ref()).unwrap();
+    es.add_event_listener_with_callback(type_, closure.as_ref().unchecked_ref())
+        .unwrap();
     closure.forget();
 }
 

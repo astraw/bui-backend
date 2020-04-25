@@ -1,17 +1,16 @@
 //! Helpers for writing browser user interfaces (BUIs).
+use crate::lowlevel::{launcher, BuiService, Config, EventChunkSender};
 use bui_backend_types::{ConnectionKey, SessionKey};
-use crate::lowlevel::{BuiService, EventChunkSender, Config, launcher};
 
-use {std, hyper, serde, serde_json, futures};
+use {futures, hyper, serde, serde_json, std};
 
 use async_change_tracker::ChangeTracker;
 
-use std::sync::Arc;
 use std::collections::HashMap;
+use std::sync::Arc;
 
+use futures::{channel::mpsc, future::FutureExt, sink::SinkExt, stream::StreamExt};
 use parking_lot::RwLock;
-use futures::{channel::mpsc, sink::SinkExt, stream::StreamExt,
-    future::FutureExt};
 use uuid::Uuid;
 
 use serde::Serialize;
@@ -21,9 +20,9 @@ use hyper::service::make_service_fn;
 
 use bui_backend_types::AccessToken;
 
-use crate::Error;
 use crate::access_control;
 use crate::lowlevel::{CallbackFnType, NewEventStreamConnection};
+use crate::Error;
 
 // ------
 
@@ -52,10 +51,10 @@ pub struct ConnectionEvent {
 // ------
 
 /// Maintain state within a BUI application.
-pub struct BuiAppInner<T,CB>
-    where
-        T: Clone + PartialEq + Serialize + Send,
-        CB: 'static + serde::de::DeserializeOwned + Clone + Send,
+pub struct BuiAppInner<T, CB>
+where
+    T: Clone + PartialEq + Serialize + Send,
+    CB: 'static + serde::de::DeserializeOwned + Clone + Send,
 {
     i_shared_arc: Arc<RwLock<ChangeTracker<T>>>,
     i_txers: Arc<RwLock<HashMap<ConnectionKey, (SessionKey, EventChunkSender, String)>>>,
@@ -64,10 +63,10 @@ pub struct BuiAppInner<T,CB>
     local_addr: std::net::SocketAddr,
 }
 
-impl<'a,T,CB> BuiAppInner<T,CB>
-    where
-        T: Clone + PartialEq + Serialize + Send + 'static,
-        CB : serde::de::DeserializeOwned + Clone + Send + 'static,
+impl<'a, T, CB> BuiAppInner<T, CB>
+where
+    T: Clone + PartialEq + Serialize + Send + 'static,
+    CB: serde::de::DeserializeOwned + Clone + Send + 'static,
 {
     /// Get reference counted reference to the underlying data store.
     pub fn shared_arc(&self) -> &Arc<RwLock<ChangeTracker<T>>> {
@@ -95,13 +94,10 @@ impl<'a,T,CB> BuiAppInner<T,CB>
     /// not the IP address that users will connect to.
     pub fn guess_url_with_token(&self) -> String {
         match self.auth.token() {
-            AccessToken::NoToken => {
-                format!("http://{}", self.local_addr)
-            },
+            AccessToken::NoToken => format!("http://{}", self.local_addr),
             AccessToken::PreSharedToken(ref tok) => {
-                format!("http://{}/?token={}",
-                    self.local_addr, tok)
-            },
+                format!("http://{}/?token={}", self.local_addr, tok)
+            }
         }
     }
 
@@ -118,37 +114,41 @@ pub fn generate_valid_token() -> String {
 }
 
 /// Generate a random token and return access control information. Requires JWT secret.
-pub fn generate_random_auth(addr: std::net::SocketAddr, secret: Vec<u8>) -> Result<access_control::AccessControl, Error> {
+pub fn generate_random_auth(
+    addr: std::net::SocketAddr,
+    secret: Vec<u8>,
+) -> Result<access_control::AccessControl, Error> {
     generate_auth_with_token(addr, secret, generate_valid_token())
 }
 
 /// Return access control information given a token and a JWT secret.
-pub fn generate_auth_with_token(addr: std::net::SocketAddr, secret: Vec<u8>, token: String) -> Result<access_control::AccessControl, Error> {
+pub fn generate_auth_with_token(
+    addr: std::net::SocketAddr,
+    secret: Vec<u8>,
+    token: String,
+) -> Result<access_control::AccessControl, Error> {
     let access_token = AccessToken::PreSharedToken(token);
     let info = access_control::AccessInfo::new(addr, access_token, secret)?;
     Ok(access_control::AccessControl::WithToken(info))
 }
 
 /// Factory function to create a new BUI application.
-pub fn create_bui_app_inner<'a,T,CB>(
-                               shutdown_rx: Option<tokio::sync::oneshot::Receiver<()>>,
-                               auth: &access_control::AccessControl,
-                               shared_arc: Arc<RwLock<ChangeTracker<T>>>,
-                               config: Config,
-                               chan_size: usize,
-                               events_prefix: &str,
-                               event_name: Option<String>,
-                            )
-                               -> Result<(mpsc::Receiver<ConnectionEvent>, BuiAppInner<T,CB>), Error>
-    where
-        T: Clone + PartialEq + Serialize + 'static + Send + Sync + Unpin,
-        CB : serde::de::DeserializeOwned + Clone + Send + 'static + Unpin,
+pub fn create_bui_app_inner<'a, T, CB>(
+    shutdown_rx: Option<tokio::sync::oneshot::Receiver<()>>,
+    auth: &access_control::AccessControl,
+    shared_arc: Arc<RwLock<ChangeTracker<T>>>,
+    config: Config,
+    chan_size: usize,
+    events_prefix: &str,
+    event_name: Option<String>,
+) -> Result<(mpsc::Receiver<ConnectionEvent>, BuiAppInner<T, CB>), Error>
+where
+    T: Clone + PartialEq + Serialize + 'static + Send + Sync + Unpin,
+    CB: serde::de::DeserializeOwned + Clone + Send + 'static + Unpin,
 {
-
     let (quit_trigger, valve) = stream_cancel::Valve::new();
 
-    let (rx_conn, bui_server) = launcher(config, &auth,
-        chan_size, events_prefix);
+    let (rx_conn, bui_server) = launcher(config, &auth, chan_size, events_prefix);
 
     let bui_server: BuiService<CB> = bui_server; // type annotation
 
@@ -162,7 +162,7 @@ pub fn create_bui_app_inner<'a,T,CB>(
     let new_service = make_service_fn(move |socket: &AddrStream| {
         let _remote_addr = socket.remote_addr();
         let b3 = b2.clone();
-        async move { Ok::<_,MyError>(b3.clone()) }
+        async move { Ok::<_, MyError>(b3.clone()) }
     });
 
     let addr = auth.bind_addr();
@@ -182,11 +182,10 @@ pub fn create_bui_app_inner<'a,T,CB>(
     };
 
     if let Some(shutdown_rx) = shutdown_rx {
-        let graceful = server
-            .with_graceful_shutdown(async move {
-                shutdown_rx.await.ok();
-                quit_trigger.cancel();
-            });
+        let graceful = server.with_graceful_shutdown(async move {
+            shutdown_rx.await.ok();
+            quit_trigger.cancel();
+        });
         tokio::spawn(Box::pin(graceful.map(log_and_swallow_err)));
     } else {
         quit_trigger.disable();
@@ -221,7 +220,8 @@ pub fn create_bui_app_inner<'a,T,CB>(
             // send current value on initial connect
             let hc: hyper::body::Bytes = {
                 let shared = shared_arc.write();
-                create_event_source_msg(&shared.as_ref(), event_name2.as_ref().map(|x| x.as_str())).into()
+                create_event_source_msg(&shared.as_ref(), event_name2.as_ref().map(|x| x.as_str()))
+                    .into()
             };
 
             let typ = ConnectionEventType::Connect(chunk_sender.clone());
@@ -229,17 +229,21 @@ pub fn create_bui_app_inner<'a,T,CB>(
             let path = conn_info.path.clone();
             let path2 = conn_info.path.clone();
 
-            match new_conn_tx2.send(ConnectionEvent {
-                            typ,
-                            session_key,
-                            connection_key,
-                            path,
-                        }).await
+            match new_conn_tx2
+                .send(ConnectionEvent {
+                    typ,
+                    session_key,
+                    connection_key,
+                    path,
+                })
+                .await
             {
                 Ok(()) => {}
                 Err(e) => {
-                    info!("failed sending ConnectionEvent. probably no listener. {:?}",
-                        e);
+                    info!(
+                        "failed sending ConnectionEvent. probably no listener. {:?}",
+                        e
+                    );
                 }
             };
 
@@ -252,7 +256,7 @@ pub fn create_bui_app_inner<'a,T,CB>(
                     error!("failed to send value on initial connect: {:?}", e);
                 }
             }
-        };
+        }
     };
 
     tokio::spawn(Box::pin(handle_connections_fut));
@@ -278,19 +282,21 @@ pub fn create_bui_app_inner<'a,T,CB>(
 
                 let mut restore = vec![];
 
-                let event_source_msg = create_event_source_msg(&new_value, event_name.as_ref().map(|x| x.as_str()));
+                let event_source_msg =
+                    create_event_source_msg(&new_value, event_name.as_ref().map(|x| x.as_str()));
 
                 for (connection_key, (session_key, mut tx, path)) in sources_drain {
-
                     let chunk = event_source_msg.clone().into();
                     match tx.send(chunk).await {
                         Ok(()) => {
                             restore.push((connection_key, (session_key, tx, path)));
                         }
                         Err(e) => {
-                            info!("Failed to send data to event stream, client \
+                            info!(
+                                "Failed to send data to event stream, client \
                                     probably disconnected. {:?}",
-                                e);
+                                e
+                            );
                             let mut nct = new_conn_tx.clone();
                             let typ = ConnectionEventType::Disconnect;
                             let ce = ConnectionEvent {
@@ -302,12 +308,13 @@ pub fn create_bui_app_inner<'a,T,CB>(
                             match nct.send(ce).await {
                                 Ok(()) => {}
                                 Err(e) => {
-                                    info!("Failed to send ConnectionEvent, \
+                                    info!(
+                                        "Failed to send ConnectionEvent, \
                                     probably no listener. {:?}",
-                                        e);
+                                        e
+                                    );
                                 }
                             };
-
                         }
                     };
                 }

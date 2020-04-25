@@ -188,7 +188,6 @@
 //! ```
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
-
 #![deny(missing_docs)]
 
 #[macro_use]
@@ -200,5 +199,5 @@ pub use errors::Error;
 pub mod access_control;
 pub use access_control::AccessControl;
 
-pub mod lowlevel;
 pub mod highlevel;
+pub mod lowlevel;

@@ -1,13 +1,13 @@
 //! Types to control access to HTTP API
 
-use std::net::SocketAddr;
 use bui_backend_types::AccessToken;
+use std::net::SocketAddr;
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 struct JwtSecret(Vec<u8>);
 
 /// Data required to specify all auth information when access is restricted
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub struct AccessInfo {
     addr: SocketAddr,
     access_token: AccessToken,
@@ -15,7 +15,11 @@ pub struct AccessInfo {
 }
 
 impl AccessInfo {
-    pub(crate) fn new(addr: SocketAddr, access_token: AccessToken, jwt_secret: Vec<u8>) -> Result<Self,crate::Error> {
+    pub(crate) fn new(
+        addr: SocketAddr,
+        access_token: AccessToken,
+        jwt_secret: Vec<u8>,
+    ) -> Result<Self, crate::Error> {
         if let AccessToken::PreSharedToken(ref _token) = access_token {
             let jwt_secret = JwtSecret(jwt_secret);
             let access_token = access_token.clone();
@@ -31,7 +35,7 @@ impl AccessInfo {
 }
 
 /// Access control method for the HTTP API
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub enum AccessControl {
     /// Access is not restricted (for use with local IP addresses)
     Insecure(SocketAddr),

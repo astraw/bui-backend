@@ -53,11 +53,11 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 
 use async_change_tracker::ChangeTracker;
+use bui_backend::highlevel::{create_bui_app_inner, BuiAppInner};
 use bui_backend::AccessControl;
-use bui_backend::highlevel::{BuiAppInner, create_bui_app_inner};
 use bui_backend_types::CallbackDataAndSession;
 
-use bui_demo_data::{Shared, Callback};
+use bui_demo_data::{Callback, Shared};
 
 #[derive(Debug)]
 struct Error {
@@ -83,7 +83,6 @@ impl From<bui_backend::Error> for Error {
     }
 }
 
-
 // Include the files to be served and define `fn get_default_config()`.
 include!(concat!(env!("OUT_DIR"), "/public.rs")); // Despite slash, this works on Windows.
 
@@ -92,8 +91,8 @@ struct MyApp {
     inner: BuiAppInner<Shared, Callback>,
 }
 
-fn address( matches: &clap::ArgMatches ) -> std::net::SocketAddr {
-    let address = matches.value_of( "address" ).unwrap();
+fn address(matches: &clap::ArgMatches) -> std::net::SocketAddr {
+    let address = matches.value_of("address").unwrap();
     address.to_socket_addrs().unwrap().next().unwrap()
 }
 
@@ -105,7 +104,7 @@ fn is_loopback(addr_any: &std::net::SocketAddr) -> bool {
 }
 
 /// Parse the JWT secret from command-line args or environment variables.
-fn jwt_secret(matches: &clap::ArgMatches, required: bool) -> Result<Vec<u8>,Error> {
+fn jwt_secret(matches: &clap::ArgMatches, required: bool) -> Result<Vec<u8>, Error> {
     match matches
         .value_of("JWT_SECRET")
         .map(|s| s.into())
@@ -115,8 +114,11 @@ fn jwt_secret(matches: &clap::ArgMatches, required: bool) -> Result<Vec<u8>,Erro
         Some(secret) => Ok(secret),
         None => {
             if required {
-                Err(ErrorKind::Raw(format!("The --jwt-secret argument must be passed or the JWT_SECRET environment \
-                variable must be set when not using loopback interface.")).into())
+                Err(ErrorKind::Raw(format!(
+                    "The --jwt-secret argument must be passed or the JWT_SECRET environment \
+                variable must be set when not using loopback interface."
+                ))
+                .into())
             } else {
                 // insecure secret when using loopback interface
                 Ok(b"jwt_secret".to_vec())
@@ -128,19 +130,26 @@ fn jwt_secret(matches: &clap::ArgMatches, required: bool) -> Result<Vec<u8>,Erro
 impl MyApp {
     /// Create our app
     fn new(auth: AccessControl, config: Config) -> Result<Self, Error> {
-    // fn new(auth: AccessControl, config: Config) -> Result<Self, Error> {
+        // fn new(auth: AccessControl, config: Config) -> Result<Self, Error> {
 
         // Create our shared state.
         let shared_store = Arc::new(RwLock::new(ChangeTracker::new(Shared {
-                                                is_recording: false,
-                                                counter: 0,
-                                                name: "".into(),
-                                            })));
+            is_recording: false,
+            counter: 0,
+            name: "".into(),
+        })));
 
         // Create `inner`, which takes care of the browser communication details for us.
         let chan_size = 10;
-        let (_, mut inner) = create_bui_app_inner(None, &auth,
-            shared_store, config, chan_size, "/events", Some("bui_backend".to_string()))?;
+        let (_, mut inner) = create_bui_app_inner(
+            None,
+            &auth,
+            shared_store,
+            config,
+            chan_size,
+            "/events",
+            Some("bui_backend".to_string()),
+        )?;
 
         // Make a clone of our shared state Arc which will be moved into our callback handler.
         let tracker_arc2 = inner.shared_arc().clone();
@@ -158,11 +167,11 @@ impl MyApp {
                 Callback::SetIsRecording(bool_value) => {
                     // Update our shared store with the value received.
                     shared.modify(|shared| shared.is_recording = bool_value);
-                },
+                }
                 Callback::SetName(name) => {
                     // Update our shared store with the value received.
                     shared.modify(|shared| shared.name = name);
-                },
+                }
             }
             futures::future::ok(())
         }));
@@ -170,26 +179,26 @@ impl MyApp {
         // Return our app.
         Ok(MyApp { inner })
     }
-
 }
 
 fn display_qr_url(url: &str) {
-    use std::io::{stdout, Write};
     use qrcodegen::{QrCode, QrCodeEcc};
+    use std::io::{stdout, Write};
 
     let qr = QrCode::encode_text(&url, QrCodeEcc::Low).unwrap();
 
     let stdout = stdout();
     let mut stdout_handle = stdout.lock();
     writeln!(stdout_handle).unwrap();
-    for y in 0 .. qr.size() {
+    for y in 0..qr.size() {
         write!(stdout_handle, " ").unwrap();
-        for x in 0 .. qr.size() {
-            write!(stdout_handle, "{}", if qr.get_module(x, y) {
-                "██"
-            } else {
-                "  "
-            }).unwrap();
+        for x in 0..qr.size() {
+            write!(
+                stdout_handle,
+                "{}",
+                if qr.get_module(x, y) { "██" } else { "  " }
+            )
+            .unwrap();
         }
         writeln!(stdout_handle).unwrap();
     }
@@ -198,7 +207,6 @@ fn display_qr_url(url: &str) {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-
     // Set environment variables from `.env` file, if it exists.
     dotenv::dotenv().ok();
 
@@ -208,18 +216,24 @@ async fn main() -> Result<(), Error> {
     // Parse our command-line arguments.
     let matches = clap::App::new("CARGO_PKG_NAME")
         .version(env!("CARGO_PKG_VERSION"))
-        .arg(clap::Arg::with_name("JWT_SECRET")
-                 .long("jwt-secret")
-                 .help("Specifies the JWT secret. Falls back to the JWT_SECRET \
-                environment variable if unspecified.")
-                 .global(true)
-                 .takes_value(true))
-        .arg(clap::Arg::with_name( "address" )
-                .long( "address" )
-                .help( "Bind the server to this address")
+        .arg(
+            clap::Arg::with_name("JWT_SECRET")
+                .long("jwt-secret")
+                .help(
+                    "Specifies the JWT secret. Falls back to the JWT_SECRET \
+                environment variable if unspecified.",
+                )
+                .global(true)
+                .takes_value(true),
+        )
+        .arg(
+            clap::Arg::with_name("address")
+                .long("address")
+                .help("Bind the server to this address")
                 .default_value("localhost:3410")
-                .value_name( "ADDRESS" )
-                .takes_value( true ))
+                .value_name("ADDRESS")
+                .takes_value(true),
+        )
         .get_matches();
 
     let http_server_addr = address(&matches);
@@ -246,8 +260,7 @@ async fn main() -> Result<(), Error> {
     let tracker_arc = my_app.inner.shared_arc().clone();
 
     // Create a stream to call our closure every second.
-    let mut interval_stream = tokio::time::interval(
-        std::time::Duration::from_millis(1000));
+    let mut interval_stream = tokio::time::interval(std::time::Duration::from_millis(1000));
 
     let stream_future = async move {
         loop {
@@ -266,8 +279,11 @@ async fn main() -> Result<(), Error> {
     };
 
     let maybe_url = my_app.inner.guess_url_with_token();
-    println!("Depending on IP address resolution, you may be able to login \
-        with this url: {}", maybe_url);
+    println!(
+        "Depending on IP address resolution, you may be able to login \
+        with this url: {}",
+        maybe_url
+    );
     println!("This same URL as a QR code:");
     display_qr_url(&maybe_url);
 

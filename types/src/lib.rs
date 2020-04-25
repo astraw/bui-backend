@@ -1,15 +1,14 @@
 //! types shared between frontend and backend of the `bui-backend` crate
 #![cfg_attr(docsrs, feature(doc_cfg))]
-
 #![deny(missing_docs)]
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// Identifier for each session (one per client browser).
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct SessionKey(pub uuid::Uuid);
 
-#[cfg(feature="uuid-v4")]
+#[cfg(feature = "uuid-v4")]
 impl SessionKey {
     /// Create a new SessionKey
     #[cfg_attr(docsrs, doc(cfg(feature = "uuid-v4")))]
@@ -45,7 +44,7 @@ impl AccessToken {
     pub fn does_match(&self, test_str: &str) -> bool {
         match self {
             &AccessToken::NoToken => true,
-            &AccessToken::PreSharedToken(ref s) => s==test_str,
+            &AccessToken::PreSharedToken(ref s) => s == test_str,
         }
     }
 }

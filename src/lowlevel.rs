@@ -2,29 +2,28 @@
 
 use std::pin::Pin;
 
-use {serde, serde_json, std, futures, jsonwebtoken};
-#[cfg(feature = "bundle_files")]
-use includedir;
 use http;
 use hyper;
+#[cfg(feature = "bundle_files")]
+use includedir;
+use {futures, jsonwebtoken, serde, serde_json, std};
 
-use hyper::{Method, StatusCode};
 use hyper::header::ACCEPT;
+use hyper::{Method, StatusCode};
 
-use futures::Future;
 use futures::channel::mpsc;
+use futures::Future;
 
-use std::sync::Arc;
 use parking_lot::Mutex;
+use std::sync::Arc;
 
-use bui_backend_types::{ConnectionKey, SessionKey, CallbackDataAndSession,
-    AccessToken};
 use crate::access_control;
+use bui_backend_types::{AccessToken, CallbackDataAndSession, ConnectionKey, SessionKey};
 
 #[cfg(feature = "serve_files")]
 use std::io::Read;
 
-use serde::{Serialize,Deserialize};
+use serde::{Deserialize, Serialize};
 
 // ---------------------------
 const JSON_TYPE: &'static str = "application/json";
@@ -71,7 +70,8 @@ pub struct NewEventStreamConnection {
 
 type NewConnectionSender = mpsc::Sender<NewEventStreamConnection>;
 
-pub(crate) type CallbackFnType<CB> = Box<dyn Fn(CallbackDataAndSession<CB>) -> futures::future::Ready<Result<(),()>> + Send>;
+pub(crate) type CallbackFnType<CB> =
+    Box<dyn Fn(CallbackDataAndSession<CB>) -> futures::future::Ready<Result<(), ()>> + Send>;
 pub(crate) type CbFuncArc<CB> = Arc<Mutex<Option<CallbackFnType<CB>>>>;
 
 /// Handle HTTP requests and coordinate responses to data updates.
@@ -79,8 +79,8 @@ pub(crate) type CbFuncArc<CB> = Arc<Mutex<Option<CallbackFnType<CB>>>>;
 /// Implements `hyper::server::Service` to act as HTTP server and handle requests.
 #[derive(Clone)]
 pub struct BuiService<CB>
-    where
-        CB: serde::de::DeserializeOwned + Clone + Send,
+where
+    CB: serde::de::DeserializeOwned + Clone + Send,
 {
     config: Config,
     callback_listener: CbFuncArc<CB>,
@@ -93,8 +93,8 @@ pub struct BuiService<CB>
 }
 
 fn _test_bui_service_is_clone<CB>()
-    where
-        CB: serde::de::DeserializeOwned + Clone + Send,
+where
+    CB: serde::de::DeserializeOwned + Clone + Send,
 {
     // Compile-time test to ensure BuiService implements Clone trait.
     fn implements<T: Clone>() {}
@@ -102,8 +102,8 @@ fn _test_bui_service_is_clone<CB>()
 }
 
 fn _test_bui_service_is_send<CB>()
-    where
-        CB: serde::de::DeserializeOwned + Clone + Send,
+where
+    CB: serde::de::DeserializeOwned + Clone + Send,
 {
     // Compile-time test to ensure BuiService implements Send trait.
     fn implements<T: Send>() {}
@@ -111,8 +111,8 @@ fn _test_bui_service_is_send<CB>()
 }
 
 fn _test_callback_data_is_send<CB>()
-    where
-        CB: serde::de::DeserializeOwned + Clone + Send,
+where
+    CB: serde::de::DeserializeOwned + Clone + Send,
 {
     // Compile-time test to ensure CallbackDataAndSession implements Send trait.
     fn implements<T: Send>() {}
@@ -120,8 +120,8 @@ fn _test_callback_data_is_send<CB>()
 }
 
 impl<CB> BuiService<CB>
-    where
-        CB: serde::de::DeserializeOwned + Clone + Send,
+where
+    CB: serde::de::DeserializeOwned + Clone + Send,
 {
     fn fullpath(&self, path: &str) -> String {
         assert!(path.starts_with("/")); // security check
@@ -180,46 +180,44 @@ impl<CB> BuiService<CB>
     }
 
     /// Get a stream of callback events.
-    pub fn set_callback_listener(&mut self, f: CallbackFnType<CB>) -> Option<CallbackFnType<CB>>
-    {
+    pub fn set_callback_listener(&mut self, f: CallbackFnType<CB>) -> Option<CallbackFnType<CB>> {
         let mut cbl = self.callback_listener.lock();
         let previous = cbl.take();
         cbl.get_or_insert(f);
         previous
     }
 
-    fn do_set_cookie_x(&self, resp: http::response::Builder) -> (http::response::Builder, SessionKey) {
+    fn do_set_cookie_x(
+        &self,
+        resp: http::response::Builder,
+    ) -> (http::response::Builder, SessionKey) {
         // There was no valid client key in the HTTP header, so generate a
         // new one and set it on client.
         let session_key = SessionKey::new();
-        let claims = JwtClaims {
-            key: session_key,
-        };
+        let claims = JwtClaims { key: session_key };
 
         let token = {
-            jsonwebtoken::encode(
-                    &jsonwebtoken::Header::default(),
-                    &claims, &self.jwt_secret)
+            jsonwebtoken::encode(&jsonwebtoken::Header::default(), &claims, &self.jwt_secret)
                 .unwrap()
         };
         let mut c = cookie::Cookie::new(self.config.cookie_name.clone(), token);
         c.set_http_only(true);
         let resp = resp.header(
             hyper::header::SET_COOKIE,
-            hyper::header::HeaderValue::from_str(&c.to_string()).unwrap());
+            hyper::header::HeaderValue::from_str(&c.to_string()).unwrap(),
+        );
         (resp, session_key)
     }
-
 }
 
-async fn handle_req<CB>(mut self_: BuiService<CB>,
+async fn handle_req<CB>(
+    mut self_: BuiService<CB>,
     req: http::Request<hyper::Body>,
     mut resp: http::response::Builder,
     login_info: ValidLogin,
-    )
-    -> Result<http::Response<hyper::Body>, http::Error>
-    where
-        CB: serde::de::DeserializeOwned + Clone + Send,
+) -> Result<http::Response<hyper::Body>, http::Error>
+where
+    CB: serde::de::DeserializeOwned + Clone + Send,
 {
     // TODO: convert this to be async yield when blocking on IO operations.
     let session_key = match login_info {
@@ -227,24 +225,26 @@ async fn handle_req<CB>(mut self_: BuiService<CB>,
             let (resp2, session_key) = self_.do_set_cookie_x(resp);
             resp = resp2;
             session_key
-        },
+        }
         ValidLogin::ExistingSession(k) => k,
     };
 
     let resp_final = match (req.method(), req.uri().path()) {
         (&Method::GET, path) => {
-
             let path = if path == "/" { "/index.html" } else { path };
 
             if path.starts_with(&self_.events_prefix) {
-
                 // Quality value parsing disabled with the following hack
                 // until this is addressed:
                 // https://github.com/hyperium/http/issues/213
 
                 let mut accepts_event_stream = false;
                 for value in req.headers().get_all(ACCEPT).iter() {
-                    if value.to_str().expect("to_str()").contains("text/event-stream") {
+                    if value
+                        .to_str()
+                        .expect("to_str()")
+                        .contains("text/event-stream")
+                    {
                         accepts_event_stream = true;
                     }
                 }
@@ -275,18 +275,23 @@ async fn handle_req<CB>(mut self_: BuiService<CB>,
 
                     resp = resp.header(
                         hyper::header::CONTENT_TYPE,
-                        hyper::header::HeaderValue::from_str("text/event-stream").expect("from_str"));
+                        hyper::header::HeaderValue::from_str("text/event-stream")
+                            .expect("from_str"),
+                    );
 
                     use futures::stream::StreamExt;
-                    let rx_event_stream2 = rx_event_stream.map(|chunk| Ok::<_,hyper::Error>(chunk));
-                    resp.body( hyper::Body::wrap_stream( rx_event_stream2 ) )?
-                    // resp.body( hyper::Body::wrap_stream( rx_event_stream.map_err(|_| Error::RxEvent.compat() ) ) )?
+                    let rx_event_stream2 =
+                        rx_event_stream.map(|chunk| Ok::<_, hyper::Error>(chunk));
+                    resp.body(hyper::Body::wrap_stream(rx_event_stream2))?
+                // resp.body( hyper::Body::wrap_stream( rx_event_stream.map_err(|_| Error::RxEvent.compat() ) ) )?
                 } else {
-                    let estr = format!("Event request does not specify \
+                    let estr = format!(
+                        "Event request does not specify \
                         'Accept' or does not accept the required \
-                        'text/event-stream'");
-                    warn!("{}",estr);
-                    let e = ErrorsBackToBrowser{errors: vec![estr]};
+                        'text/event-stream'"
+                    );
+                    warn!("{}", estr);
+                    let e = ErrorsBackToBrowser { errors: vec![estr] };
                     let body_str = serde_json::to_string(&e).unwrap();
                     resp = resp.status(StatusCode::BAD_REQUEST);
                     resp.body(body_str.into())?
@@ -295,20 +300,18 @@ async fn handle_req<CB>(mut self_: BuiService<CB>,
                 // TODO read file asynchronously
                 match self_.get_file_content(path) {
                     Some(buf) => {
-
                         let path = std::path::Path::new(path);
                         let mime_type = match path.extension().map(|x| x.to_str()).unwrap_or(None) {
                             Some("wasm") => Some("application/wasm"),
-                            Some(ext) => {
-                                self_.mime_types.get_mime_type(ext)
-                            }
+                            Some(ext) => self_.mime_types.get_mime_type(ext),
                             None => None,
                         };
 
                         if let Some(mime_type) = mime_type {
                             resp = resp.header(
                                 hyper::header::CONTENT_TYPE,
-                                hyper::header::HeaderValue::from_str(mime_type).expect("from_str"));
+                                hyper::header::HeaderValue::from_str(mime_type).expect("from_str"),
+                            );
                         }
 
                         resp.body(buf.into())?
@@ -328,22 +331,22 @@ async fn handle_req<CB>(mut self_: BuiService<CB>,
     Ok(resp_final)
 }
 
-async fn handle_callback<CB>(cbfunc: CbFuncArc<CB>,
+async fn handle_callback<CB>(
+    cbfunc: CbFuncArc<CB>,
     session_key: bui_backend_types::SessionKey,
     resp0: http::response::Builder,
     req: http::Request<hyper::Body>,
-    )
-    -> Result<http::Response<hyper::Body>, hyper::Error>
-    where
-        CB: 'static + serde::de::DeserializeOwned + Clone + Send,
+) -> Result<http::Response<hyper::Body>, hyper::Error>
+where
+    CB: 'static + serde::de::DeserializeOwned + Clone + Send,
 {
-
     // fold all chunks into one Vec<u8>
     let body = req.into_body();
     use futures::stream::StreamExt;
-    let chunks: Vec<Result<hyper::body::Bytes,hyper::Error>> = body.collect().await;
+    let chunks: Vec<Result<hyper::body::Bytes, hyper::Error>> = body.collect().await;
     use std::iter::FromIterator;
-    let chunks: Result<Vec<hyper::body::Bytes>,hyper::Error> = Result::from_iter(chunks.into_iter());
+    let chunks: Result<Vec<hyper::body::Bytes>, hyper::Error> =
+        Result::from_iter(chunks.into_iter());
     let chunks: Vec<hyper::body::Bytes> = chunks?;
 
     let data: Vec<u8> = chunks.into_iter().fold(vec![], |mut buf, chunk| {
@@ -382,9 +385,7 @@ async fn handle_callback<CB>(cbfunc: CbFuncArc<CB>,
                 }
             };
 
-
             if let Some(fut) = opt_fut {
-
                 let x = fut.await;
 
                 // Send the payload to callback.
@@ -392,7 +393,8 @@ async fn handle_callback<CB>(cbfunc: CbFuncArc<CB>,
                     Ok(()) => {
                         let resp = resp0
                             .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
-                            .body(JSON_NULL.into()).expect("response");
+                            .body(JSON_NULL.into())
+                            .expect("response");
                         resp
                     }
                     Err(e) => {
@@ -400,35 +402,35 @@ async fn handle_callback<CB>(cbfunc: CbFuncArc<CB>,
                         let resp = resp0
                             .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
                             .status(StatusCode::INTERNAL_SERVER_ERROR)
-                            .body(JSON_NULL.into()).expect("response");
+                            .body(JSON_NULL.into())
+                            .expect("response");
                         resp
                     }
                 };
                 Ok(r0)
-
             } else {
                 error!("no callback handler set");
                 let resp = resp0
                     .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
-                    .body(JSON_NULL.into()).expect("response");
+                    .body(JSON_NULL.into())
+                    .expect("response");
                 Ok(resp)
             }
         }
-        Err(e) => {
-            Ok(on_json_parse_err(e))
-        }
+        Err(e) => Ok(on_json_parse_err(e)),
     }
 }
 
 fn on_json_parse_err(e: serde_json::Error) -> http::Response<hyper::Body> {
     let estr = format!("Failed parsing JSON: {}", e);
-    warn!("{}",estr);
-    let e = ErrorsBackToBrowser{errors: vec![estr]};
+    warn!("{}", estr);
+    let e = ErrorsBackToBrowser { errors: vec![estr] };
     let body_str = serde_json::to_string(&e).unwrap();
     http::Response::builder()
         .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
         .status(StatusCode::BAD_REQUEST)
-        .body(body_str.into()).expect("response")
+        .body(body_str.into())
+        .expect("response")
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -444,14 +446,13 @@ enum ValidLogin {
     NeedsSessionKey,
 }
 
-fn get_session_key(map: &hyper::HeaderMap<hyper::header::HeaderValue>,
-                  query_pairs: url::form_urlencoded::Parse,
-                  cookie_name: &str,
-                  jwt_secret: &[u8],
-                  valid_token: &AccessToken,
-                )
-                  -> Result<ValidLogin,ErrorsBackToBrowser> {
-
+fn get_session_key(
+    map: &hyper::HeaderMap<hyper::header::HeaderValue>,
+    query_pairs: url::form_urlencoded::Parse,
+    cookie_name: &str,
+    jwt_secret: &[u8],
+    valid_token: &AccessToken,
+) -> Result<ValidLogin, ErrorsBackToBrowser> {
     use std::borrow::Cow;
 
     let mut errors = Vec::new();
@@ -461,7 +462,7 @@ fn get_session_key(map: &hyper::HeaderMap<hyper::header::HeaderValue>,
         debug!("got query pair {}, {}", key, value);
         if key == Cow::Borrowed("token") {
             if valid_token.does_match(&value) {
-                return Ok(ValidLogin::NeedsSessionKey)
+                return Ok(ValidLogin::NeedsSessionKey);
             } else {
                 warn!("incorrect token in URI: {}", value);
                 let estr = format!("incorrect token in URI");
@@ -481,12 +482,18 @@ fn get_session_key(map: &hyper::HeaderMap<hyper::header::HeaderValue>,
                         if c.name() == cookie_name {
                             let encoded = c.value();
                             debug!("jwt_encoded = {}", encoded);
-                            let validation = jsonwebtoken::Validation {validate_exp: false, ..Default::default()};
-                            match jsonwebtoken::decode::<JwtClaims>(&encoded,
-                                                                    jwt_secret,
-                                                                    &validation)
-                                            .map(|token| token.claims.key) {
-                                Ok(k) => {return Ok(ValidLogin::ExistingSession(k))},
+                            let validation = jsonwebtoken::Validation {
+                                validate_exp: false,
+                                ..Default::default()
+                            };
+                            match jsonwebtoken::decode::<JwtClaims>(
+                                &encoded,
+                                jwt_secret,
+                                &validation,
+                            )
+                            .map(|token| token.claims.key)
+                            {
+                                Ok(k) => return Ok(ValidLogin::ExistingSession(k)),
                                 Err(e) => {
                                     warn!("client passed token in cookie {:?}, resulting in error: {:?}", c, e);
                                     let estr = format!("{}: {:?}", e, e);
@@ -519,22 +526,25 @@ fn get_session_key(map: &hyper::HeaderMap<hyper::header::HeaderValue>,
         }
         _ => {
             errors.push("no valid session key".to_string());
-            Err(ErrorsBackToBrowser{errors})
+            Err(ErrorsBackToBrowser { errors })
         }
     }
 }
 
 impl<CB> tower_service::Service<http::Request<hyper::Body>> for BuiService<CB>
-    where
-        CB: 'static + serde::de::DeserializeOwned + Clone + Send,
+where
+    CB: 'static + serde::de::DeserializeOwned + Clone + Send,
 {
     type Response = http::Response<hyper::Body>;
     type Error = hyper::Error;
 
     // should Self::Future also implement Unpin??
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>+Send>>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-    fn poll_ready(&mut self, _cx: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
+    fn poll_ready(
+        &mut self,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
         std::task::Poll::Ready(Ok(()))
     }
 
@@ -546,25 +556,32 @@ impl<CB> tower_service::Service<http::Request<hyper::Body>> for BuiService<CB>
 
             let pairs = url::form_urlencoded::parse(query.unwrap_or("").as_bytes());
 
-            get_session_key(&req.headers(), pairs, &self.config.cookie_name,
-                &self.jwt_secret, &self.valid_token)
+            get_session_key(
+                &req.headers(),
+                pairs,
+                &self.config.cookie_name,
+                &self.jwt_secret,
+                &self.valid_token,
+            )
         };
 
-        debug!("got request from session key {:?}: {:?}", res_session_key, req);
+        debug!(
+            "got request from session key {:?}: {:?}",
+            res_session_key, req
+        );
 
         if req.method() == &Method::POST {
             if req.uri().path() == "/callback" {
                 let login_info = match res_session_key {
-                    Ok(login_info) => {
-                        login_info
-                    }
+                    Ok(login_info) => login_info,
                     Err(errors) => {
                         warn!("no (valid) session key in callback");
                         let body_str = serde_json::to_string(&errors).unwrap();
                         let resp = http::Response::builder()
                             .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
                             .status(StatusCode::BAD_REQUEST)
-                            .body(body_str.into()).expect("response");
+                            .body(body_str.into())
+                            .expect("response");
                         return Box::pin(futures::future::ok(resp));
                     }
                 };
@@ -575,53 +592,56 @@ impl<CB> tower_service::Service<http::Request<hyper::Body>> for BuiService<CB>
                         let (resp2, session_key) = self.do_set_cookie_x(resp0);
                         resp0 = resp2;
                         session_key
-                    },
+                    }
                     ValidLogin::ExistingSession(k) => k,
                 };
 
-                return Box::pin( handle_callback( self.callback_listener.clone(),
-                    session_key, resp0, req ));
+                return Box::pin(handle_callback(
+                    self.callback_listener.clone(),
+                    session_key,
+                    resp0,
+                    req,
+                ));
             }
         }
 
         let resp = http::Response::builder();
 
         let login_info = match res_session_key {
-            Ok(login_info) => {
-                login_info
-            }
+            Ok(login_info) => login_info,
             Err(_errors) => {
                 let estr = format!("No (valid) token in request.");
-                let errors = ErrorsBackToBrowser{errors: vec![estr]};
+                let errors = ErrorsBackToBrowser { errors: vec![estr] };
 
                 let body_str = serde_json::to_string(&errors).unwrap();
                 let resp = http::Response::builder()
                     .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
                     .status(StatusCode::BAD_REQUEST)
-                    .body(body_str.into()).expect("response");
+                    .body(body_str.into())
+                    .expect("response");
                 return Box::pin(futures::future::ok(resp));
             }
         };
 
         use futures::FutureExt;
-        let resp_final = handle_req(self.clone(), req, resp, login_info).map(|r|
-            match r {
-                Ok(x) => Ok(x),
-                Err(_e) => unimplemented!(),
-            });
+        let resp_final = handle_req(self.clone(), req, resp, login_info).map(|r| match r {
+            Ok(x) => Ok(x),
+            Err(_e) => unimplemented!(),
+        });
 
         Box::pin(resp_final)
     }
 }
 
 /// Create a stream of connection events and a `BuiService`.
-pub fn launcher<CB>(config: Config,
-                auth: &access_control::AccessControl,
-                channel_size: usize,
-                events_prefix: &str)
-                -> (mpsc::Receiver<NewEventStreamConnection>, BuiService<CB>)
-    where
-        CB: serde::de::DeserializeOwned + Clone + Send,
+pub fn launcher<CB>(
+    config: Config,
+    auth: &access_control::AccessControl,
+    channel_size: usize,
+    events_prefix: &str,
+) -> (mpsc::Receiver<NewEventStreamConnection>, BuiService<CB>)
+where
+    CB: serde::de::DeserializeOwned + Clone + Send,
 {
     let next_connection_key = Arc::new(Mutex::new(ConnectionKey(0)));
 

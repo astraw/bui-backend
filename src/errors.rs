@@ -2,7 +2,7 @@ use ::hyper;
 use thiserror::Error;
 
 /// Possible errors
-#[derive(Error,Debug)]
+#[derive(Error, Debug)]
 pub enum Error {
     /// A non-local IP address requires a token
     #[error("non-localhost address requires pre-shared token")]
