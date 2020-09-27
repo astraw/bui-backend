@@ -44,5 +44,5 @@ frontend_js = []
 # Use the Rust seed frontend
 frontend_seed = []
 
-# Use the Rust seed frontend
+# Use the Rust yew frontend
 frontend_yew = []
