@@ -48,5 +48,8 @@ used.) Install from https://rustwasm.github.io/wasm-pack/installer/ .
 
     cd frontend_seed && ./build.sh
 
+## Building the Rust yew frontend
+
+    cd frontend_yew && ./build.sh
 
 License: MIT/Apache-2.0
