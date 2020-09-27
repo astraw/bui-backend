@@ -15,7 +15,6 @@ use bui_demo_data::{Callback, Shared};
 pub struct App {
     link: ComponentLink<Self>,
     shared: Option<Shared>,
-    fetch_service: FetchService,
     es: EventSourceTask,
     ft: Option<FetchTask>,
     local_name: String,
@@ -53,7 +52,6 @@ impl Component for App {
         };
 
         Self {
-            fetch_service: FetchService::new(),
             link,
             shared: None,
             es: task,
@@ -163,9 +161,7 @@ impl App {
             });
         let mut options = FetchOptions::default();
         options.credentials = Some(Credentials::SameOrigin);
-        match self
-            .fetch_service
-            .fetch_with_options(post_request, options, callback)
+        match FetchService::fetch_with_options(post_request, options, callback)
         {
             Ok(task) => Some(task),
             Err(err) => {
