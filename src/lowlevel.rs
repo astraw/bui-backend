@@ -86,6 +86,7 @@ where
     callback_listener: CbFuncArc<CB>,
     next_connection_key: Arc<Mutex<ConnectionKey>>,
     jwt_secret: Vec<u8>,
+    encoding_key: jsonwebtoken::EncodingKey,
     valid_token: AccessToken,
     tx_new_connection: NewConnectionSender,
     events_prefix: String,
@@ -197,8 +198,12 @@ where
         let claims = JwtClaims { key: session_key };
 
         let token = {
-            jsonwebtoken::encode(&jsonwebtoken::Header::default(), &claims, &self.jwt_secret)
-                .unwrap()
+            jsonwebtoken::encode(
+                &jsonwebtoken::Header::default(),
+                &claims,
+                &self.encoding_key,
+            )
+            .unwrap()
         };
         let mut c = cookie::Cookie::new(self.config.cookie_name.clone(), token);
         c.set_http_only(true);
@@ -446,11 +451,11 @@ enum ValidLogin {
     NeedsSessionKey,
 }
 
-fn get_session_key(
+fn get_session_key<'a>(
     map: &hyper::HeaderMap<hyper::header::HeaderValue>,
     query_pairs: url::form_urlencoded::Parse,
     cookie_name: &str,
-    jwt_secret: &[u8],
+    decoding_key: &jsonwebtoken::DecodingKey<'a>,
     valid_token: &AccessToken,
 ) -> Result<ValidLogin, ErrorsBackToBrowser> {
     use std::borrow::Cow;
@@ -488,7 +493,7 @@ fn get_session_key(
                             };
                             match jsonwebtoken::decode::<JwtClaims>(
                                 &encoded,
-                                jwt_secret,
+                                decoding_key,
                                 &validation,
                             )
                             .map(|token| token.claims.key)
@@ -549,6 +554,7 @@ where
     }
 
     fn call(&mut self, req: http::Request<hyper::Body>) -> Self::Future {
+        let decoding_key = jsonwebtoken::DecodingKey::from_secret(&self.jwt_secret);
         // Parse cookies.
         let res_session_key = {
             let query = req.uri().query();
@@ -560,7 +566,7 @@ where
                 &req.headers(),
                 pairs,
                 &self.config.cookie_name,
-                &self.jwt_secret,
+                &decoding_key,
                 &self.valid_token,
             )
         };
@@ -652,6 +658,7 @@ where
         callback_listener: Arc::new(Mutex::new(None)),
         next_connection_key: next_connection_key,
         jwt_secret: auth.jwt_secret().to_vec(),
+        encoding_key: jsonwebtoken::EncodingKey::from_secret(auth.jwt_secret()),
         valid_token: auth.token().clone(),
         tx_new_connection: tx_new_connection,
         events_prefix: events_prefix.to_string(),
