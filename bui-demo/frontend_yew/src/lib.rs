@@ -23,6 +23,8 @@ pub struct App {
 pub enum Msg {
     /// We got new data from the backend.
     EsReady(Result<Shared, anyhow::Error>),
+    /// Trigger a check of the event source state.
+    EsCheckState,
     /// Update our local copy of our name. (E.g. the user typed a key.)
     UpdateName(String),
     /// We want to update name on the server. (E.g. the user pressed Enter.)
@@ -42,9 +44,8 @@ impl Component for App {
             let notification = link.callback(|status| {
                 if status == EventSourceStatus::Error {
                     log::error!("event source error");
-                    // TODO: Upon error, close the existing task and try re-opening?
                 }
-                Msg::Ignore
+                Msg::EsCheckState
             });
             let mut task = EventSourceService::new()
                 .connect("events", notification)
@@ -73,6 +74,9 @@ impl Component for App {
                         log::error!("{}", e);
                     }
                 };
+            }
+            Msg::EsCheckState => {
+                return true;
             }
             Msg::UpdateName(name) => {
                 self.local_name = name;
