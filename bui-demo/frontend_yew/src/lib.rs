@@ -46,9 +46,11 @@ impl Component for App {
                 }
                 Msg::Ignore
             });
-            EventSourceService::new()
-                .connect("events", "bui_backend", callback, notification)
-                .unwrap()
+            let mut task = EventSourceService::new()
+                .connect("events", notification)
+                .unwrap();
+            task.add_event_listener("bui_backend", callback);
+            task
         };
 
         Self {
@@ -161,8 +163,7 @@ impl App {
             });
         let mut options = FetchOptions::default();
         options.credentials = Some(Credentials::SameOrigin);
-        match FetchService::fetch_with_options(post_request, options, callback)
-        {
+        match FetchService::fetch_with_options(post_request, options, callback) {
             Ok(task) => Some(task),
             Err(err) => {
                 log::error!("sending message failed with error: {}", err);
