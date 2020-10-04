@@ -10,7 +10,7 @@ edition = "2018"
 
 [dependencies]
 walkdir = { version = "2.2.5", optional = true }
-includedir_codegen = {version="0.5", optional=true}
+includedir_codegen = {version="0.6", optional=true}
 
 [features]
 default = ["bundle_files"]
