@@ -9,7 +9,7 @@ edition = "2018"
 
 [dependencies]
 async-change-tracker = "0.3.1"
-bui-backend = {version="0.8", default-features = false, path=".."}
+bui-backend = {version="0.9", default-features = false, path=".."}
 bui-backend-types = {version="0.8", path="../types", features=["uuid-v4"]}
 log = "0.4"
 env_logger = "0.7"
@@ -28,7 +28,7 @@ tokio = {version="0.2.0", features=["macros"]}
 bui-demo-data = {path="bui-demo-data"}
 
 [build-dependencies]
-bui-backend-codegen = {version = "0.8", default-features = false, path="../codegen"}
+bui-backend-codegen = {version = "0.9", default-features = false, path="../codegen"}
 
 [features]
 default = ["bundle_files", "frontend_js"]
