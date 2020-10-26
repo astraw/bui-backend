@@ -129,7 +129,7 @@ fn jwt_secret(matches: &clap::ArgMatches, required: bool) -> Result<Vec<u8>, Err
 
 impl MyApp {
     /// Create our app
-    fn new(auth: AccessControl, config: Config) -> Result<Self, Error> {
+    async fn new(auth: AccessControl, config: Config) -> Result<Self, Error> {
         // fn new(auth: AccessControl, config: Config) -> Result<Self, Error> {
 
         // Create our shared state.
@@ -149,7 +149,7 @@ impl MyApp {
             chan_size,
             "/events",
             Some("bui_backend".to_string()),
-        )?;
+        ).await?;
 
         // Make a clone of our shared state Arc which will be moved into our callback handler.
         let tracker_arc2 = inner.shared_arc().clone();
@@ -254,7 +254,7 @@ async fn main() -> Result<(), Error> {
 
     // // Create our app.
 
-    let my_app = MyApp::new(auth, config)?;
+    let my_app = MyApp::new(auth, config).await?;
 
     // Clone our shared data to move it into a closure later.
     let tracker_arc = my_app.inner.shared_arc().clone();
