@@ -4,6 +4,23 @@ All user visible changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/), as described
 for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/text/1105-api-evolution.md)
 
+## [0.10.0] - 2020-10-27
+
+### Changed
+
+* Update to `tokio` 0.3.
+
+## [0.9.0] - 2020-10-04
+
+### Changed
+
+* Update bui-backend-codegen crate to 0.9.0.
+* Update dependencies (parking_lot,includedir,stream-cancel,jsonwebtoken,cookie).
+
+### Added
+
+* Restore yew demo
+
 ## [0.8.0] - 2019-12-26
 
 ### Changed
