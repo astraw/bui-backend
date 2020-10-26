@@ -133,7 +133,7 @@ pub fn generate_auth_with_token(
 }
 
 /// Factory function to create a new BUI application.
-pub fn create_bui_app_inner<'a, T, CB>(
+pub async fn create_bui_app_inner<'a, T, CB>(
     shutdown_rx: Option<tokio::sync::oneshot::Receiver<()>>,
     auth: &access_control::AccessControl,
     shared_arc: Arc<RwLock<ChangeTracker<T>>>,
@@ -146,6 +146,8 @@ where
     T: Clone + PartialEq + Serialize + 'static + Send + Sync + Unpin,
     CB: serde::de::DeserializeOwned + Clone + Send + 'static + Unpin,
 {
+    use tokio_compat_02::FutureExt;
+
     let (quit_trigger, valve) = stream_cancel::Valve::new();
 
     let (rx_conn, bui_server) = launcher(config, &auth, chan_size, events_prefix);
@@ -168,7 +170,7 @@ where
     let addr = auth.bind_addr();
 
     // this will fail unless there is a reactor already
-    let bound = hyper::Server::bind(addr);
+    let bound = async { hyper::Server::try_bind(&addr) }.compat().await?;
 
     let server = bound.serve(new_service);
 
@@ -186,10 +188,10 @@ where
             shutdown_rx.await.ok();
             quit_trigger.cancel();
         });
-        tokio::spawn(Box::pin(graceful.map(log_and_swallow_err)));
+        tokio::spawn(Box::pin(graceful.map(log_and_swallow_err).compat()));
     } else {
         quit_trigger.disable();
-        tokio::spawn(Box::pin(server.map(log_and_swallow_err)));
+        tokio::spawn(Box::pin(server.map(log_and_swallow_err).compat()));
     };
 
     let inner = BuiAppInner {

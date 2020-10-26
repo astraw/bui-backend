@@ -14,6 +14,8 @@ use hyper::{Method, StatusCode};
 use futures::channel::mpsc;
 use futures::Future;
 
+use tokio_compat_02::FutureExt;
+
 use parking_lot::Mutex;
 use std::sync::Arc;
 
@@ -288,7 +290,6 @@ where
                     let rx_event_stream2 =
                         rx_event_stream.map(|chunk| Ok::<_, hyper::Error>(chunk));
                     resp.body(hyper::Body::wrap_stream(rx_event_stream2))?
-                // resp.body( hyper::Body::wrap_stream( rx_event_stream.map_err(|_| Error::RxEvent.compat() ) ) )?
                 } else {
                     let estr = format!(
                         "Event request does not specify \
@@ -348,7 +349,7 @@ where
     // fold all chunks into one Vec<u8>
     let body = req.into_body();
     use futures::stream::StreamExt;
-    let chunks: Vec<Result<hyper::body::Bytes, hyper::Error>> = body.collect().await;
+    let chunks: Vec<Result<hyper::body::Bytes, hyper::Error>> = body.collect().compat().await;
     use std::iter::FromIterator;
     let chunks: Result<Vec<hyper::body::Bytes>, hyper::Error> =
         Result::from_iter(chunks.into_iter());
