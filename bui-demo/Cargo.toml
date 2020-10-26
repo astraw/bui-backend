@@ -24,7 +24,7 @@ hyper = "0.13"
 qrcodegen = "1.4"
 dotenv = "0.15"
 futures = "0.3.0"
-tokio = {version="0.2.0", features=["macros"]}
+tokio = {version="0.3.1", features=["macros"]}
 bui-demo-data = {path="bui-demo-data"}
 
 [build-dependencies]
