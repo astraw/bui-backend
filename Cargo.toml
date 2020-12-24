@@ -24,7 +24,7 @@ stream-cancel = "0.7"
 http = "0.2"
 url = "2"
 tower-service = "0.3"
-hyper = "0.13"
+hyper = "0.14"
 log = "0.4"
 serde = {version="1.0",features=["derive"]}
 serde_json = {version = "1.0"}
