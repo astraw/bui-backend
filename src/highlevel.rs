@@ -146,8 +146,6 @@ where
     T: Clone + PartialEq + Serialize + 'static + Send + Sync + Unpin,
     CB: serde::de::DeserializeOwned + Clone + Send + 'static + Unpin,
 {
-    use tokio_compat_02::FutureExt;
-
     let (quit_trigger, valve) = stream_cancel::Valve::new();
 
     let (rx_conn, bui_server) = launcher(config, &auth, chan_size, events_prefix);
@@ -170,7 +168,7 @@ where
     let addr = auth.bind_addr();
 
     // this will fail unless there is a reactor already
-    let bound = async { hyper::Server::try_bind(&addr) }.compat().await?;
+    let bound = async { hyper::Server::try_bind(&addr) }.await?;
 
     let server = bound.serve(new_service);
 
@@ -188,10 +186,10 @@ where
             shutdown_rx.await.ok();
             quit_trigger.cancel();
         });
-        tokio::spawn(Box::pin(graceful.map(log_and_swallow_err).compat()));
+        tokio::spawn(Box::pin(graceful.map(log_and_swallow_err)));
     } else {
         quit_trigger.disable();
-        tokio::spawn(Box::pin(server.map(log_and_swallow_err).compat()));
+        tokio::spawn(Box::pin(server.map(log_and_swallow_err)));
     };
 
     let inner = BuiAppInner {
