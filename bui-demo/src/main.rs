@@ -149,7 +149,8 @@ impl MyApp {
             chan_size,
             "/events",
             Some("bui_backend".to_string()),
-        ).await?;
+        )
+        .await?;
 
         // Make a clone of our shared state Arc which will be moved into our callback handler.
         let tracker_arc2 = inner.shared_arc().clone();
