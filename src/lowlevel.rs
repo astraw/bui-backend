@@ -14,8 +14,6 @@ use hyper::{Method, StatusCode};
 use futures::channel::mpsc;
 use futures::Future;
 
-use tokio_compat_02::FutureExt;
-
 use parking_lot::Mutex;
 use std::sync::Arc;
 
@@ -349,7 +347,7 @@ where
     // fold all chunks into one Vec<u8>
     let body = req.into_body();
     use futures::stream::StreamExt;
-    let chunks: Vec<Result<hyper::body::Bytes, hyper::Error>> = body.collect().compat().await;
+    let chunks: Vec<Result<hyper::body::Bytes, hyper::Error>> = body.collect().await;
     use std::iter::FromIterator;
     let chunks: Result<Vec<hyper::body::Bytes>, hyper::Error> =
         Result::from_iter(chunks.into_iter());
