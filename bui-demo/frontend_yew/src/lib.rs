@@ -1,5 +1,3 @@
-mod eventsource;
-
 use wasm_bindgen::prelude::*;
 
 use yew::events::KeyboardEvent;
@@ -8,7 +6,7 @@ use yew::prelude::*;
 
 use yew::services::fetch::{Credentials, FetchOptions, FetchService, FetchTask, Request, Response};
 
-use eventsource::{EventSourceService, EventSourceStatus, EventSourceTask};
+use yew_event_source::{EventSourceService, EventSourceStatus, EventSourceTask};
 
 use bui_demo_data::{Callback, Shared};
 
