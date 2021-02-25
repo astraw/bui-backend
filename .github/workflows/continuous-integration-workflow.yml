@@ -33,3 +33,29 @@ jobs:
     - uses: actions-rs/cargo@v1
       with:
         command: build
+
+  build_demo_frontend_yew:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bui-demo/frontend_yew
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+    - run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+    - run: ./build.sh
+
+  build_demo_frontend_seed:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bui-demo/frontend_seed
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+    - run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+    - run: ./build.sh
