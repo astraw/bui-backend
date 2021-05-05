@@ -217,9 +217,10 @@ where
 
 async fn handle_req<CB>(
     mut self_: BuiService<CB>,
-    req: http::Request<hyper::Body>,
+    mut req: http::Request<hyper::Body>,
     mut resp: http::response::Builder,
     login_info: ValidLogin,
+    remote_addr: std::net::SocketAddr,
 ) -> Result<http::Response<hyper::Body>, http::Error>
 where
     CB: serde::de::DeserializeOwned + Clone + Send,
@@ -242,39 +243,85 @@ where
                 // let (parts, _body) = req.into_parts();
                 // let request = http::Request::from_parts(parts, ());
 
+                // resp = tungstenite::create_response_with_body(req, || {})?;
+                let new_resp: http::response::Response<hyper::Body> =
+                    tungstenite::handshake::server::create_response_with_body(&req, move || {
+                        // let (tx_event_stream, rx_event_stream) = mpsc::channel(channel_size);
+
+                        // let conn_info = NewEventStreamConnection {
+                        //     chunk_sender: tx_event_stream,
+                        //     session_key: session_key,
+                        //     connection_key: connection_key,
+                        //     path: path.to_string(),
+                        // };
+
+                        // use futures::sink::SinkExt;
+                        // let send_future = tx_new_connection.try_send(conn_info);
+                        // match send_future {
+                        //     Ok(()) => {}
+                        //     Err(e) => {
+                        //         error!("failed to send new connection info: {:?}", e);
+                        //         // should we panic here?
+                        //     }
+                        // };
+
+                        // use futures::stream::StreamExt;
+                        // let rx_event_stream2 =
+                        //     rx_event_stream.map(|chunk| Ok::<_, hyper::Error>(chunk));
+                        // let body: hyper::Body = hyper::Body::wrap_stream(rx_event_stream2);
+                        let body: hyper::Body = hyper::Body::empty();
+                        body
+                    })
+                    .unwrap();
+
                 let connection_key = self_.get_next_connection_key();
                 let channel_size = self_.config.channel_size;
                 let mut tx_new_connection = self_.tx_new_connection.clone();
 
-                // resp = tungstenite::create_response_with_body(req, || {})?;
-                let new_resp: http::response::Response<hyper::Body> =
-                    tungstenite::handshake::server::create_response_with_body(&req, move || {
-                        let (tx_event_stream, rx_event_stream) = mpsc::channel(channel_size);
+                //in case the handshake response creation succeeds,
+                //spawn a task to handle the websocket connection
+                tokio::spawn(async move {
+                    use futures::StreamExt;
+                    //using the hyper feature of upgrading a connection
+                    match hyper::upgrade::on(&mut req).await {
+                        //if successfully upgraded
+                        Ok(upgraded) => {
+                            //create a websocket stream from the upgraded object
+                            let ws_stream = tokio_tungstenite::WebSocketStream::from_raw_socket(
+                                //pass the upgraded object
+                                //as the base layer stream of the Websocket
+                                upgraded,
+                                tokio_tungstenite::tungstenite::protocol::Role::Server,
+                                None,
+                            )
+                            .await;
 
-                        let conn_info = NewEventStreamConnection {
-                            chunk_sender: tx_event_stream,
-                            session_key: session_key,
-                            connection_key: connection_key,
-                            path: path.to_string(),
-                        };
+                            //we can split the stream into a sink and a stream
+                            let (ws_write, ws_read) = ws_stream.split();
 
-                        use futures::sink::SinkExt;
-                        let send_future = tx_new_connection.try_send(conn_info);
-                        match send_future {
-                            Ok(()) => {}
-                            Err(e) => {
-                                error!("failed to send new connection info: {:?}", e);
-                                // should we panic here?
-                            }
-                        };
-
-                        use futures::stream::StreamExt;
-                        let rx_event_stream2 =
-                            rx_event_stream.map(|chunk| Ok::<_, hyper::Error>(chunk));
-                        let body: hyper::Body = hyper::Body::wrap_stream(rx_event_stream2);
-                        body
-                    })
-                    .unwrap();
+                            //forward the stream to the sink to achieve echo
+                            match ws_read.forward(ws_write).await {
+                                Ok(_) => {}
+                                Err(tungstenite::Error::ConnectionClosed) => {
+                                    println!("Connection closed normally")
+                                }
+                                Err(e) => println!(
+                                    "error creating echo stream on \
+                                                connection from address {}. \
+                                                Error is {}",
+                                    remote_addr, e
+                                ),
+                            };
+                        }
+                        Err(e) => println!(
+                            "error when trying to upgrade connection \
+                                    from address {} to websocket connection. \
+                                    Error is: {}",
+                            remote_addr, e
+                        ),
+                    }
+                });
+                //return the response to the handshake request
 
                 // // let connection_key = self_.get_next_connection_key();
                 // // let (tx_event_stream, rx_event_stream) =
@@ -638,11 +685,14 @@ where
             }
         };
 
+        let remote_addr = 1u8;
+
         use futures::FutureExt;
-        let resp_final = handle_req(self.clone(), req, resp, login_info).map(|r| match r {
-            Ok(x) => Ok(x),
-            Err(_e) => unimplemented!(),
-        });
+        let resp_final =
+            handle_req(self.clone(), req, resp, login_info, remote_addr).map(|r| match r {
+                Ok(x) => Ok(x),
+                Err(_e) => unimplemented!(),
+            });
 
         Box::pin(resp_final)
     }

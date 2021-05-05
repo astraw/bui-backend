@@ -32,7 +32,7 @@ thiserror = "1.0"
 cookie = "0.15"
 conduit-mime-types = "0.7"
 tungstenite = {version="0.13", default-features=false}
-# tokio-tungstenite = "0.13"
+tokio-tungstenite = "0.14"
 
 [features]
 default = ["bundle_files"]
