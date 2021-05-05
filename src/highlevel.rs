@@ -332,9 +332,10 @@ where
 
 fn create_event_source_msg<T: serde::Serialize>(value: &T, event_name: Option<&str>) -> String {
     let buf = serde_json::to_string(&value).expect("encode");
-    if let Some(event_name) = event_name {
-        format!("event: {}\ndata: {}\n\n", event_name, buf)
-    } else {
-        format!("data: {}\n\n", buf)
-    }
+    // if let Some(event_name) = event_name {
+    //     format!("event: {}\ndata: {}\n\n", event_name, buf)
+    // } else {
+    //     format!("data: {}\n\n", buf)
+    // }
+    buf
 }

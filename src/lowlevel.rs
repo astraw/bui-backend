@@ -272,35 +272,12 @@ where
             };
 
             if path.starts_with(&self_.parent.events_prefix) {
-                // let (parts, _body) = req.into_parts();
-                // let request = http::Request::from_parts(parts, ());
-
-                // resp = tungstenite::create_response_with_body(req, || {})?;
+                // TODO: here we ignore the `resp` above and create a new one.
+                // This is probably not what we want. Rather, we should keep the
+                // original `resp`. But the tungstenite API does not seem to
+                // allow this.
                 let new_resp: http::response::Response<hyper::Body> =
                     tungstenite::handshake::server::create_response_with_body(&req, move || {
-                        // let (tx_event_stream, rx_event_stream) = mpsc::channel(channel_size);
-
-                        // let conn_info = NewEventStreamConnection {
-                        //     chunk_sender: tx_event_stream,
-                        //     session_key: session_key,
-                        //     connection_key: connection_key,
-                        //     path: path.to_string(),
-                        // };
-
-                        // use futures::sink::SinkExt;
-                        // let send_future = tx_new_connection.try_send(conn_info);
-                        // match send_future {
-                        //     Ok(()) => {}
-                        //     Err(e) => {
-                        //         error!("failed to send new connection info: {:?}", e);
-                        //         // should we panic here?
-                        //     }
-                        // };
-
-                        // use futures::stream::StreamExt;
-                        // let rx_event_stream2 =
-                        //     rx_event_stream.map(|chunk| Ok::<_, hyper::Error>(chunk));
-                        // let body: hyper::Body = hyper::Body::wrap_stream(rx_event_stream2);
                         let body: hyper::Body = hyper::Body::empty();
                         body
                     })
@@ -352,29 +329,14 @@ where
                             loop {
                                 let event = rx_event_stream.next().await;
                                 if let Some(event) = event {
+                                    let bytes = event.to_vec();
+                                    let msg_text = std::str::from_utf8(&bytes).unwrap();
                                     ws_stream
-                                        .send(tungstenite::Message::Binary(event.to_vec()))
+                                        .send(tungstenite::Message::Text(msg_text.into()))
                                         .await
                                         .unwrap();
                                 }
                             }
-
-                            // //we can split the stream into a sink and a stream
-                            // let (ws_write, ws_read) = ws_stream.split();
-
-                            // //forward the stream to the sink to achieve echo
-                            // match ws_read.forward(ws_write).await {
-                            //     Ok(_) => {}
-                            //     Err(tungstenite::Error::ConnectionClosed) => {
-                            //         println!("Connection closed normally")
-                            //     }
-                            //     Err(e) => println!(
-                            //         "error creating echo stream on \
-                            //                     connection from address {}. \
-                            //                     Error is {}",
-                            //         remote_addr, e
-                            //     ),
-                            // };
                         }
                         Err(e) => println!(
                             "error when trying to upgrade connection \
@@ -384,41 +346,6 @@ where
                         ),
                     }
                 });
-                //return the response to the handshake request
-
-                // // let connection_key = self_.parent.get_next_connection_key();
-                // // let (tx_event_stream, rx_event_stream) =
-                // //     mpsc::channel(self_.parent.config.channel_size);
-
-                // // {
-                // //     let conn_info = NewEventStreamConnection {
-                // //         chunk_sender: tx_event_stream,
-                // //         session_key: session_key,
-                // //         connection_key: connection_key,
-                // //         path: path.to_string(),
-                // //     };
-
-                // //     use futures::sink::SinkExt;
-                // //     let send_future = self_.parent.tx_new_connection.send(conn_info);
-                // //     match send_future.await {
-                // //         Ok(()) => {}
-                // //         Err(e) => {
-                // //             error!("failed to send new connection info: {:?}", e);
-                // //             // should we panic here?
-                // //         }
-                // //     };
-                // // }
-
-                // // resp = resp.header(
-                // //     hyper::header::CONTENT_TYPE,
-                // //     hyper::header::HeaderValue::from_str("text/event-stream")
-                // //         .expect("from_str"),
-                // // );
-
-                // // use futures::stream::StreamExt;
-                // // let rx_event_stream2 =
-                // //     rx_event_stream.map(|chunk| Ok::<_, hyper::Error>(chunk));
-                // // resp.body(hyper::Body::wrap_stream(rx_event_stream2))?
                 new_resp
             } else {
                 // TODO read file asynchronously
