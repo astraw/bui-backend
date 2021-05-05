@@ -160,9 +160,9 @@ where
     type MyError = std::io::Error; // anything that implements std::error::Error and Send
 
     let new_service = make_service_fn(move |socket: &AddrStream| {
-        let _remote_addr = socket.remote_addr();
-        let b3 = b2.clone();
-        async move { Ok::<_, MyError>(b3.clone()) }
+        let remote_addr = socket.remote_addr();
+        let my_service = b2.new_connection(remote_addr);
+        async move { Ok::<_, MyError>(my_service) }
     });
 
     let addr = auth.bind_addr();

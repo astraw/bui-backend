@@ -120,10 +120,37 @@ where
     implements::<CallbackDataAndSession<CB>>();
 }
 
+/// A connection to a remote client, typically a browser.
+#[derive(Clone)]
+pub struct BuiConnection<CB>
+where
+    CB: serde::de::DeserializeOwned + Clone + Send,
+{
+    parent: BuiService<CB>,
+    remote_addr: std::net::SocketAddr,
+}
+
+impl<CB> BuiConnection<CB>
+where
+    CB: serde::de::DeserializeOwned + Clone + Send,
+{
+    fn new(parent: BuiService<CB>, remote_addr: std::net::SocketAddr) -> Self {
+        Self {
+            parent,
+            remote_addr,
+        }
+    }
+}
+
 impl<CB> BuiService<CB>
 where
     CB: serde::de::DeserializeOwned + Clone + Send,
 {
+    /// Return a new connection.
+    pub fn new_connection(&self, remote_addr: std::net::SocketAddr) -> BuiConnection<CB> {
+        BuiConnection::new(self.clone(), remote_addr)
+    }
+
     fn fullpath(&self, path: &str) -> String {
         assert!(path.starts_with("/")); // security check
         let path = std::path::PathBuf::from(path)
@@ -216,7 +243,7 @@ where
 }
 
 async fn handle_req<CB>(
-    mut self_: BuiService<CB>,
+    mut self_: BuiConnection<CB>,
     mut req: http::Request<hyper::Body>,
     mut resp: http::response::Builder,
     login_info: ValidLogin,
@@ -228,18 +255,23 @@ where
     // TODO: convert this to be async yield when blocking on IO operations.
     let session_key = match login_info {
         ValidLogin::NeedsSessionKey => {
-            let (resp2, session_key) = self_.do_set_cookie_x(resp);
+            let (resp2, session_key) = self_.parent.do_set_cookie_x(resp);
             resp = resp2;
             session_key
         }
         ValidLogin::ExistingSession(k) => k,
     };
+    let uri_path = req.uri().path().to_string();
 
-    let resp_final: http::Response<hyper::Body> = match (req.method(), req.uri().path()) {
+    let resp_final: http::Response<hyper::Body> = match (req.method(), uri_path) {
         (&Method::GET, path) => {
-            let path = if path == "/" { "/index.html" } else { path };
+            let path = if path == "/" {
+                "/index.html".into()
+            } else {
+                path
+            };
 
-            if path.starts_with(&self_.events_prefix) {
+            if path.starts_with(&self_.parent.events_prefix) {
                 // let (parts, _body) = req.into_parts();
                 // let request = http::Request::from_parts(parts, ());
 
@@ -274,9 +306,9 @@ where
                     })
                     .unwrap();
 
-                let connection_key = self_.get_next_connection_key();
-                let channel_size = self_.config.channel_size;
-                let mut tx_new_connection = self_.tx_new_connection.clone();
+                let connection_key = self_.parent.get_next_connection_key();
+                let channel_size = self_.parent.config.channel_size;
+                let mut tx_new_connection = self_.parent.tx_new_connection.clone();
 
                 //in case the handshake response creation succeeds,
                 //spawn a task to handle the websocket connection
@@ -287,31 +319,62 @@ where
                         //if successfully upgraded
                         Ok(upgraded) => {
                             //create a websocket stream from the upgraded object
-                            let ws_stream = tokio_tungstenite::WebSocketStream::from_raw_socket(
-                                //pass the upgraded object
-                                //as the base layer stream of the Websocket
-                                upgraded,
-                                tokio_tungstenite::tungstenite::protocol::Role::Server,
-                                None,
-                            )
-                            .await;
+                            let mut ws_stream =
+                                tokio_tungstenite::WebSocketStream::from_raw_socket(
+                                    //pass the upgraded object
+                                    //as the base layer stream of the Websocket
+                                    upgraded,
+                                    tokio_tungstenite::tungstenite::protocol::Role::Server,
+                                    None,
+                                )
+                                .await;
 
-                            //we can split the stream into a sink and a stream
-                            let (ws_write, ws_read) = ws_stream.split();
+                            let (tx_event_stream, mut rx_event_stream) =
+                                mpsc::channel(channel_size);
 
-                            //forward the stream to the sink to achieve echo
-                            match ws_read.forward(ws_write).await {
-                                Ok(_) => {}
-                                Err(tungstenite::Error::ConnectionClosed) => {
-                                    println!("Connection closed normally")
-                                }
-                                Err(e) => println!(
-                                    "error creating echo stream on \
-                                                connection from address {}. \
-                                                Error is {}",
-                                    remote_addr, e
-                                ),
+                            let conn_info = NewEventStreamConnection {
+                                chunk_sender: tx_event_stream,
+                                session_key: session_key,
+                                connection_key: connection_key,
+                                path: path.to_string(),
                             };
+
+                            use futures::sink::SinkExt;
+                            let send_future = tx_new_connection.try_send(conn_info);
+                            match send_future {
+                                Ok(()) => {}
+                                Err(e) => {
+                                    error!("failed to send new connection info: {:?}", e);
+                                    // should we panic here?
+                                }
+                            };
+
+                            loop {
+                                let event = rx_event_stream.next().await;
+                                if let Some(event) = event {
+                                    ws_stream
+                                        .send(tungstenite::Message::Binary(event.to_vec()))
+                                        .await
+                                        .unwrap();
+                                }
+                            }
+
+                            // //we can split the stream into a sink and a stream
+                            // let (ws_write, ws_read) = ws_stream.split();
+
+                            // //forward the stream to the sink to achieve echo
+                            // match ws_read.forward(ws_write).await {
+                            //     Ok(_) => {}
+                            //     Err(tungstenite::Error::ConnectionClosed) => {
+                            //         println!("Connection closed normally")
+                            //     }
+                            //     Err(e) => println!(
+                            //         "error creating echo stream on \
+                            //                     connection from address {}. \
+                            //                     Error is {}",
+                            //         remote_addr, e
+                            //     ),
+                            // };
                         }
                         Err(e) => println!(
                             "error when trying to upgrade connection \
@@ -323,9 +386,9 @@ where
                 });
                 //return the response to the handshake request
 
-                // // let connection_key = self_.get_next_connection_key();
+                // // let connection_key = self_.parent.get_next_connection_key();
                 // // let (tx_event_stream, rx_event_stream) =
-                // //     mpsc::channel(self_.config.channel_size);
+                // //     mpsc::channel(self_.parent.config.channel_size);
 
                 // // {
                 // //     let conn_info = NewEventStreamConnection {
@@ -336,7 +399,7 @@ where
                 // //     };
 
                 // //     use futures::sink::SinkExt;
-                // //     let send_future = self_.tx_new_connection.send(conn_info);
+                // //     let send_future = self_.parent.tx_new_connection.send(conn_info);
                 // //     match send_future.await {
                 // //         Ok(()) => {}
                 // //         Err(e) => {
@@ -359,12 +422,12 @@ where
                 new_resp
             } else {
                 // TODO read file asynchronously
-                match self_.get_file_content(path) {
+                match self_.parent.get_file_content(&path) {
                     Some(buf) => {
-                        let path = std::path::Path::new(path);
+                        let path = std::path::Path::new(&path);
                         let mime_type = match path.extension().map(|x| x.to_str()).unwrap_or(None) {
                             Some("wasm") => Some("application/wasm"),
-                            Some(ext) => self_.mime_types.get_mime_type(ext),
+                            Some(ext) => self_.parent.mime_types.get_mime_type(ext),
                             None => None,
                         };
 
@@ -592,7 +655,7 @@ fn get_session_key<'a>(
     }
 }
 
-impl<CB> hyper::service::Service<hyper::Request<hyper::Body>> for BuiService<CB>
+impl<CB> hyper::service::Service<hyper::Request<hyper::Body>> for BuiConnection<CB>
 where
     CB: 'static + serde::de::DeserializeOwned + Clone + Send,
 {
@@ -610,7 +673,7 @@ where
     }
 
     fn call(&mut self, req: http::Request<hyper::Body>) -> Self::Future {
-        let decoding_key = jsonwebtoken::DecodingKey::from_secret(&self.jwt_secret);
+        let decoding_key = jsonwebtoken::DecodingKey::from_secret(&self.parent.jwt_secret);
         // Parse cookies.
         let res_session_key = {
             let query = req.uri().query();
@@ -621,9 +684,9 @@ where
             get_session_key(
                 &req.headers(),
                 pairs,
-                &self.config.cookie_name,
+                &self.parent.config.cookie_name,
                 &decoding_key,
-                &self.valid_token,
+                &self.parent.valid_token,
             )
         };
 
@@ -651,7 +714,7 @@ where
                 let mut resp0 = http::Response::builder();
                 let session_key = match login_info {
                     ValidLogin::NeedsSessionKey => {
-                        let (resp2, session_key) = self.do_set_cookie_x(resp0);
+                        let (resp2, session_key) = self.parent.do_set_cookie_x(resp0);
                         resp0 = resp2;
                         session_key
                     }
@@ -659,7 +722,7 @@ where
                 };
 
                 return Box::pin(handle_callback(
-                    self.callback_listener.clone(),
+                    self.parent.callback_listener.clone(),
                     session_key,
                     resp0,
                     req,
@@ -685,11 +748,9 @@ where
             }
         };
 
-        let remote_addr = 1u8;
-
         use futures::FutureExt;
         let resp_final =
-            handle_req(self.clone(), req, resp, login_info, remote_addr).map(|r| match r {
+            handle_req(self.clone(), req, resp, login_info, self.remote_addr).map(|r| match r {
                 Ok(x) => Ok(x),
                 Err(_e) => unimplemented!(),
             });
