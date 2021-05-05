@@ -63,7 +63,7 @@ var SeverEvents = {
             new_uri = "ws:";
         }
         new_uri += "//" + loc.host;
-        new_uri += loc.pathname + "/ws";
+        new_uri += loc.pathname + "ws";
 
 
         var source = new WebSocket(new_uri);

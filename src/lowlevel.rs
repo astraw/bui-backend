@@ -234,32 +234,23 @@ where
         ValidLogin::ExistingSession(k) => k,
     };
 
-    let resp_final = match (req.method(), req.uri().path()) {
+    let resp_final: http::Response<hyper::Body> = match (req.method(), req.uri().path()) {
         (&Method::GET, path) => {
             let path = if path == "/" { "/index.html" } else { path };
 
             if path.starts_with(&self_.events_prefix) {
-                // Quality value parsing disabled with the following hack
-                // until this is addressed:
-                // https://github.com/hyperium/http/issues/213
+                // let (parts, _body) = req.into_parts();
+                // let request = http::Request::from_parts(parts, ());
 
-                let mut accepts_event_stream = false;
-                for value in req.headers().get_all(ACCEPT).iter() {
-                    if value
-                        .to_str()
-                        .expect("to_str()")
-                        .contains("text/event-stream")
-                    {
-                        accepts_event_stream = true;
-                    }
-                }
+                let connection_key = self_.get_next_connection_key();
+                let channel_size = self_.config.channel_size;
+                let mut tx_new_connection = self_.tx_new_connection.clone();
 
-                if accepts_event_stream {
-                    let connection_key = self_.get_next_connection_key();
-                    let (tx_event_stream, rx_event_stream) =
-                        mpsc::channel(self_.config.channel_size);
+                // resp = tungstenite::create_response_with_body(req, || {})?;
+                let new_resp: http::response::Response<hyper::Body> =
+                    tungstenite::handshake::server::create_response_with_body(&req, move || {
+                        let (tx_event_stream, rx_event_stream) = mpsc::channel(channel_size);
 
-                    {
                         let conn_info = NewEventStreamConnection {
                             chunk_sender: tx_event_stream,
                             session_key: session_key,
@@ -268,38 +259,57 @@ where
                         };
 
                         use futures::sink::SinkExt;
-                        let send_future = self_.tx_new_connection.send(conn_info);
-                        match send_future.await {
+                        let send_future = tx_new_connection.try_send(conn_info);
+                        match send_future {
                             Ok(()) => {}
                             Err(e) => {
                                 error!("failed to send new connection info: {:?}", e);
                                 // should we panic here?
                             }
                         };
-                    }
 
-                    resp = resp.header(
-                        hyper::header::CONTENT_TYPE,
-                        hyper::header::HeaderValue::from_str("text/event-stream")
-                            .expect("from_str"),
-                    );
+                        use futures::stream::StreamExt;
+                        let rx_event_stream2 =
+                            rx_event_stream.map(|chunk| Ok::<_, hyper::Error>(chunk));
+                        let body: hyper::Body = hyper::Body::wrap_stream(rx_event_stream2);
+                        body
+                    })
+                    .unwrap();
 
-                    use futures::stream::StreamExt;
-                    let rx_event_stream2 =
-                        rx_event_stream.map(|chunk| Ok::<_, hyper::Error>(chunk));
-                    resp.body(hyper::Body::wrap_stream(rx_event_stream2))?
-                } else {
-                    let estr = format!(
-                        "Event request does not specify \
-                        'Accept' or does not accept the required \
-                        'text/event-stream'"
-                    );
-                    warn!("{}", estr);
-                    let e = ErrorsBackToBrowser { errors: vec![estr] };
-                    let body_str = serde_json::to_string(&e).unwrap();
-                    resp = resp.status(StatusCode::BAD_REQUEST);
-                    resp.body(body_str.into())?
-                }
+                // // let connection_key = self_.get_next_connection_key();
+                // // let (tx_event_stream, rx_event_stream) =
+                // //     mpsc::channel(self_.config.channel_size);
+
+                // // {
+                // //     let conn_info = NewEventStreamConnection {
+                // //         chunk_sender: tx_event_stream,
+                // //         session_key: session_key,
+                // //         connection_key: connection_key,
+                // //         path: path.to_string(),
+                // //     };
+
+                // //     use futures::sink::SinkExt;
+                // //     let send_future = self_.tx_new_connection.send(conn_info);
+                // //     match send_future.await {
+                // //         Ok(()) => {}
+                // //         Err(e) => {
+                // //             error!("failed to send new connection info: {:?}", e);
+                // //             // should we panic here?
+                // //         }
+                // //     };
+                // // }
+
+                // // resp = resp.header(
+                // //     hyper::header::CONTENT_TYPE,
+                // //     hyper::header::HeaderValue::from_str("text/event-stream")
+                // //         .expect("from_str"),
+                // // );
+
+                // // use futures::stream::StreamExt;
+                // // let rx_event_stream2 =
+                // //     rx_event_stream.map(|chunk| Ok::<_, hyper::Error>(chunk));
+                // // resp.body(hyper::Body::wrap_stream(rx_event_stream2))?
+                new_resp
             } else {
                 // TODO read file asynchronously
                 match self_.get_file_content(path) {
