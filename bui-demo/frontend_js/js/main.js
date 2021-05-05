@@ -16,8 +16,8 @@ function update_dom(state) {
     mirror.appendChild(element);
 
     var toggle = document.getElementById("toggle-recording-button");
-    toggle.onclick = function(event) {
-        send_message({SetIsRecording: !state.server_store.is_recording});
+    toggle.onclick = function (event) {
+        send_message({ SetIsRecording: !state.server_store.is_recording });
     };
 
     var name_input = document.getElementById("name-input");
@@ -30,7 +30,7 @@ function update_dom(state) {
     }
 }
 
-function send_message(msg){
+function send_message(msg) {
     var buf = JSON.stringify(msg);
 
     var httpRequest = new XMLHttpRequest();
@@ -40,18 +40,18 @@ function send_message(msg){
 }
 
 
-document.getElementById("name-input").addEventListener('blur',function(event) {
-    send_message({SetName: event.target.value});
+document.getElementById("name-input").addEventListener('blur', function (event) {
+    send_message({ SetName: event.target.value });
 });
 
-document.getElementById("name-input").addEventListener('keypress',function(event) {
+document.getElementById("name-input").addEventListener('keypress', function (event) {
     if (event.key == "Enter") {
-        send_message({SetName: event.target.value});
+        send_message({ SetName: event.target.value });
         document.getElementById("name-input").blur();
     }
 });
 
-var state = {ready_state: 0, server_store: {}};
+var state = { ready_state: 0, server_store: {} };
 
 var SeverEvents = {
     init: function () {
@@ -77,19 +77,19 @@ var SeverEvents = {
 
         } else {
             var root = document.getElementById("root");
-            root.innerHTML = ('<div>'+
-                '<h4>EventSource not supported in this browser</h4>'+
-                'Read about EventSource (also known as Server-sent events) at <a '+
-                'href="https://html.spec.whatwg.org/multipage/'+
-                'server-sent-events.html#server-sent-events">whatwg.org</a>.'+
-                'See <a href="http://caniuse.com/#feat=eventsource">caniuse.com</a> for '+
-                'information about which browsers are supported.'+
+            root.innerHTML = ('<div>' +
+                '<h4>EventSource not supported in this browser</h4>' +
+                'Read about EventSource (also known as Server-sent events) at <a ' +
+                'href="https://html.spec.whatwg.org/multipage/' +
+                'server-sent-events.html#server-sent-events">whatwg.org</a>.' +
+                'See <a href="http://caniuse.com/#feat=eventsource">caniuse.com</a> for ' +
+                'information about which browsers are supported.' +
                 '</div>');
         }
     }
 };
 
-function start(){
+function start() {
     SeverEvents.init();
 }
 
