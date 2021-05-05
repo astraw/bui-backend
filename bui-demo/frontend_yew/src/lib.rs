@@ -6,14 +6,14 @@ use yew::prelude::*;
 
 use yew::services::fetch::{Credentials, FetchOptions, FetchService, FetchTask, Request, Response};
 
-use yew_event_source::{EventSourceService, EventSourceStatus, EventSourceTask};
+use yew::services::websocket::{WebSocketService, WebSocketStatus, WebSocketTask};
 
 use bui_demo_data::{Callback, Shared};
 
 pub struct App {
     link: ComponentLink<Self>,
     shared: Option<Shared>,
-    es: EventSourceTask,
+    es: WebSocketTask,
     ft: Option<FetchTask>,
     local_name: String,
 }
@@ -21,7 +21,7 @@ pub struct App {
 pub enum Msg {
     /// We got new data from the backend.
     EsReady(Result<Shared, anyhow::Error>),
-    /// Trigger a check of the event source state.
+    /// Trigger a check of the web socket state.
     EsCheckState,
     /// Update our local copy of our name. (E.g. the user typed a key.)
     UpdateName(String),
@@ -40,15 +40,14 @@ impl Component for App {
         let task = {
             let callback = link.callback(|Json(data)| Msg::EsReady(data));
             let notification = link.callback(|status| {
-                if status == EventSourceStatus::Error {
-                    log::error!("event source error");
+                if status == WebSocketStatus::Error {
+                    log::error!("web socket error");
                 }
                 Msg::EsCheckState
             });
-            let mut task = EventSourceService::new()
-                .connect("events", notification)
-                .unwrap();
-            task.add_event_listener("bui_backend", callback);
+            let mut task =
+                WebSocketService::connect_text("ws://localhost:3410/ws", callback, notification)
+                    .unwrap();
             task
         };
 
@@ -118,8 +117,9 @@ impl Component for App {
 
 impl App {
     fn view_ready_state(&self) -> Html {
+        // <p>{ format!("Connection State: {:?}", self.es.ready_state()) }</p>
         html! {
-            <p>{ format!("Connection State: {:?}", self.es.ready_state()) }</p>
+            <div></div>
         }
     }
 
