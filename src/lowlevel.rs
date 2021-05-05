@@ -535,7 +535,7 @@ fn get_session_key<'a>(
     }
 }
 
-impl<CB> tower_service::Service<http::Request<hyper::Body>> for BuiService<CB>
+impl<CB> hyper::service::Service<hyper::Request<hyper::Body>> for BuiService<CB>
 where
     CB: 'static + serde::de::DeserializeOwned + Clone + Send,
 {
