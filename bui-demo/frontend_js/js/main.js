@@ -1,7 +1,7 @@
 function update_dom(state) {
     var mirror = document.getElementById("mirror");
     var buf = JSON.stringify(state.server_store);
-    if (state.ready_state != EventSource.OPEN) {
+    if (state.ready_state != WebSocket.OPEN) {
         // connection not in OPEN state
         buf = "connection state: " + state.ready_state;
     }
@@ -56,36 +56,39 @@ var state = { ready_state: 0, server_store: {} };
 var SeverEvents = {
     init: function () {
 
-        if (!!window.EventSource) {
-            var source = new EventSource("events");
-            state.ready_state = source.readyState;
-
-            source.addEventListener('bui_backend', function (e) {
-                state.server_store = JSON.parse(e.data);
-                update_dom(state);
-            }, false);
-
-            source.addEventListener('open', function (e) {
-                state.ready_state = source.readyState;
-                update_dom(state);
-            }, false);
-
-            source.addEventListener('error', function (e) {
-                state.ready_state = source.readyState;
-                update_dom(state);
-            }, false);
-
+        var loc = window.location, new_uri;
+        if (loc.protocol === "https:") {
+            new_uri = "wss:";
         } else {
-            var root = document.getElementById("root");
-            root.innerHTML = ('<div>' +
-                '<h4>EventSource not supported in this browser</h4>' +
-                'Read about EventSource (also known as Server-sent events) at <a ' +
-                'href="https://html.spec.whatwg.org/multipage/' +
-                'server-sent-events.html#server-sent-events">whatwg.org</a>.' +
-                'See <a href="http://caniuse.com/#feat=eventsource">caniuse.com</a> for ' +
-                'information about which browsers are supported.' +
-                '</div>');
+            new_uri = "ws:";
         }
+        new_uri += "//" + loc.host;
+        new_uri += loc.pathname + "/ws";
+
+
+        var source = new WebSocket(new_uri);
+        state.ready_state = source.readyState;
+
+        source.addEventListener('message', function (e) {
+            state.server_store = JSON.parse(e.data);
+            update_dom(state);
+        }, false);
+
+        source.addEventListener('open', function (e) {
+            state.ready_state = source.readyState;
+            update_dom(state);
+        }, false);
+
+        source.addEventListener('error', function (e) {
+            state.ready_state = source.readyState;
+            update_dom(state);
+        }, false);
+
+        source.addEventListener('close', function (e) {
+            state.ready_state = source.readyState;
+            update_dom(state);
+        }, false);
+
     }
 };
 

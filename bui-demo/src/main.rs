@@ -147,7 +147,7 @@ impl MyApp {
             shared_store,
             config,
             chan_size,
-            "/events",
+            "/ws",
             Some("bui_backend".to_string()),
         )
         .await?;
