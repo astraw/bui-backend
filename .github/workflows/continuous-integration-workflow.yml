@@ -34,6 +34,30 @@ jobs:
       with:
         command: build
 
+  build_demo:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bui-demo
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+    - run: cargo build
+
+  build_demo_serve_files:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bui-demo
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+    - run: cargo build --no-default-features --features serve_files,frontend_js
+
   build_demo_frontend_yew:
     runs-on: ubuntu-latest
     defaults:
