@@ -110,7 +110,7 @@ impl Component for App {
                 { self.view_ready_state() }
                 { self.view_shared() }
                 { self.view_input() }
-                <button onclick=self.link.callback(|_| Msg::ToggleRecording),>{ "Toggle recording" }</button>
+                <button onclick=self.link.callback(|_| Msg::ToggleRecording)>{ "Toggle recording" }</button>
             </div>
         }
     }
@@ -137,13 +137,13 @@ impl App {
 
     fn view_input(&self) -> Html {
         html! {
-            <input placeholder="name",
-                   value=&self.local_name,
-                   oninput=self.link.callback(|e: InputData| Msg::UpdateName(e.value)),
-                   onblur=self.link.callback(move|_| Msg::SendName),
+            <input placeholder="name"
+                   value=self.local_name.clone()
+                   oninput=self.link.callback(|e: InputData| Msg::UpdateName(e.value))
+                   onblur=self.link.callback(move|_| Msg::SendName)
                    onkeypress=self.link.callback(|e: KeyboardEvent| {
                        if e.key() == "Enter" { Msg::SendName } else { Msg::Ignore }
-                   }), />
+                   }) />
         }
     }
 

@@ -8,14 +8,14 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-yew = "0.17"
+yew = "0.18"
 web-sys = {version="0.3", features=["EventSource"]}
 anyhow = "1.0"
 gloo = { version = "0.2.1" }
 wasm-bindgen = "^0.2"
 log = "0.4"
 wasm-logger = "0.2.0"
-yew-event-source = "0.1"
+yew-event-source = "0.2"
 
 bui-demo-data = {path="../bui-demo-data"}
 
