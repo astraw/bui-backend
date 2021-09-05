@@ -143,8 +143,11 @@ impl MyApp {
         let (rx_conn, bui_server) =
             bui_backend::lowlevel::launcher(config, &auth, chan_size, "/events", None);
 
+        let handle = tokio::runtime::Handle::current();
+
         // Create `inner`, which takes care of the browser communication details for us.
         let (_, mut inner) = create_bui_app_inner(
+            handle,
             None,
             &auth,
             shared_store,

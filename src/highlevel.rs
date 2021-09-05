@@ -134,6 +134,7 @@ pub fn generate_auth_with_token(
 
 /// Factory function to create a new BUI application.
 pub async fn create_bui_app_inner<'a, T, CB>(
+    handle: tokio::runtime::Handle,
     shutdown_rx: Option<tokio::sync::oneshot::Receiver<()>>,
     auth: &access_control::AccessControl,
     shared_arc: Arc<RwLock<ChangeTracker<T>>>,
@@ -183,10 +184,10 @@ where
             shutdown_rx.await.ok();
             quit_trigger.cancel();
         });
-        tokio::spawn(Box::pin(graceful.map(log_and_swallow_err)));
+        handle.spawn(Box::pin(graceful.map(log_and_swallow_err)));
     } else {
         quit_trigger.disable();
-        tokio::spawn(Box::pin(server.map(log_and_swallow_err)));
+        handle.spawn(Box::pin(server.map(log_and_swallow_err)));
     };
 
     let inner = BuiAppInner {
@@ -256,7 +257,7 @@ where
         }
     };
 
-    tokio::spawn(Box::pin(handle_connections_fut));
+    handle.spawn(Box::pin(handle_connections_fut));
 
     // --- push changes
 
@@ -322,7 +323,7 @@ where
             }
         }
     };
-    tokio::spawn(Box::pin(change_listener));
+    handle.spawn(Box::pin(change_listener));
 
     Ok((new_conn_rx, inner))
 }
