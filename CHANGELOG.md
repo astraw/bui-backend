@@ -4,6 +4,18 @@ All user visible changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/), as described
 for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/text/1105-api-evolution.md)
 
+## unreleased
+
+### Changed
+
+* Requires explicit tokio runtime handle
+
+* Requires two step construction process to start BUI server.
+
+### Added
+
+* Enable custom HTTP request handlers
+
 ## [0.11.0] - 2020-12-25
 
 ### Changed
