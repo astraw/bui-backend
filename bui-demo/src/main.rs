@@ -139,16 +139,18 @@ impl MyApp {
             name: "".into(),
         })));
 
-        // Create `inner`, which takes care of the browser communication details for us.
         let chan_size = 10;
+        let (rx_conn, bui_server) =
+            bui_backend::lowlevel::launcher(config, &auth, chan_size, "/events", None);
+
+        // Create `inner`, which takes care of the browser communication details for us.
         let (_, mut inner) = create_bui_app_inner(
             None,
             &auth,
             shared_store,
-            config,
-            chan_size,
-            "/events",
             Some("bui_backend".to_string()),
+            rx_conn,
+            bui_server,
         )
         .await?;
 

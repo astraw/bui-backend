@@ -1,5 +1,5 @@
 //! Helpers for writing browser user interfaces (BUIs).
-use crate::lowlevel::{launcher, BuiService, Config, EventChunkSender};
+use crate::lowlevel::{BuiService, EventChunkSender};
 use bui_backend_types::{ConnectionKey, SessionKey};
 
 use {futures, hyper, serde, serde_json, std};
@@ -137,18 +137,15 @@ pub async fn create_bui_app_inner<'a, T, CB>(
     shutdown_rx: Option<tokio::sync::oneshot::Receiver<()>>,
     auth: &access_control::AccessControl,
     shared_arc: Arc<RwLock<ChangeTracker<T>>>,
-    config: Config,
-    chan_size: usize,
-    events_prefix: &str,
     event_name: Option<String>,
+    rx_conn: mpsc::Receiver<NewEventStreamConnection>,
+    bui_server: BuiService<CB>,
 ) -> Result<(mpsc::Receiver<ConnectionEvent>, BuiAppInner<T, CB>), Error>
 where
     T: Clone + PartialEq + Serialize + 'static + Send + Sync + Unpin,
     CB: serde::de::DeserializeOwned + Clone + Send + 'static + Unpin,
 {
     let (quit_trigger, valve) = stream_cancel::Valve::new();
-
-    let (rx_conn, bui_server) = launcher(config, &auth, chan_size, events_prefix);
 
     let bui_server: BuiService<CB> = bui_server; // type annotation
 

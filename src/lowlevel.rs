@@ -74,6 +74,21 @@ pub(crate) type CallbackFnType<CB> =
     Box<dyn Fn(CallbackDataAndSession<CB>) -> futures::future::Ready<Result<(), ()>> + Send>;
 pub(crate) type CbFuncArc<CB> = Arc<Mutex<Option<CallbackFnType<CB>>>>;
 
+/// Handles HTTP requests not handled by bui_backend.
+///
+/// For any request, bui_backend will first check if it can respond
+/// directly and then, if not, call this request to the handling.
+pub type RawReqHandler = Arc<
+    Box<
+        dyn (Fn(
+                http::response::Builder,
+                http::Request<hyper::Body>,
+            ) -> Result<http::Response<hyper::Body>, http::Error>)
+            + Send
+            + Sync,
+    >,
+>;
+
 /// Handle HTTP requests and coordinate responses to data updates.
 ///
 /// Implements `hyper::server::Service` to act as HTTP server and handle requests.
@@ -91,6 +106,7 @@ where
     tx_new_connection: NewConnectionSender,
     events_prefix: String,
     mime_types: conduit_mime_types::Types,
+    raw_req_handler: Option<RawReqHandler>,
 }
 
 fn _test_bui_service_is_clone<CB>()
@@ -220,6 +236,7 @@ async fn handle_req<CB>(
     req: http::Request<hyper::Body>,
     mut resp: http::response::Builder,
     login_info: ValidLogin,
+    raw_req_handler: Option<RawReqHandler>,
 ) -> Result<http::Response<hyper::Body>, http::Error>
 where
     CB: serde::de::DeserializeOwned + Clone + Send,
@@ -321,15 +338,23 @@ where
                         resp.body(buf.into())?
                     }
                     None => {
-                        resp = resp.status(StatusCode::NOT_FOUND);
-                        resp.body(hyper::Body::empty())?
+                        if let Some(raw_req_handler) = raw_req_handler {
+                            raw_req_handler(resp, req)?
+                        } else {
+                            resp = resp.status(StatusCode::NOT_FOUND);
+                            resp.body(hyper::Body::empty())?
+                        }
                     }
                 }
             }
         }
         _ => {
-            resp = resp.status(StatusCode::NOT_FOUND);
-            resp.body(hyper::Body::empty())?
+            if let Some(raw_req_handler) = raw_req_handler {
+                raw_req_handler(resp, req)?
+            } else {
+                resp = resp.status(StatusCode::NOT_FOUND);
+                resp.body(hyper::Body::empty())?
+            }
         }
     };
     Ok(resp_final)
@@ -629,7 +654,14 @@ where
         };
 
         use futures::FutureExt;
-        let resp_final = handle_req(self.clone(), req, resp, login_info).map(|r| match r {
+        let resp_final = handle_req(
+            self.clone(),
+            req,
+            resp,
+            login_info,
+            self.raw_req_handler.clone(),
+        )
+        .map(|r| match r {
             Ok(x) => Ok(x),
             Err(_e) => unimplemented!(),
         });
@@ -644,6 +676,7 @@ pub fn launcher<CB>(
     auth: &access_control::AccessControl,
     channel_size: usize,
     events_prefix: &str,
+    raw_req_handler: Option<RawReqHandler>,
 ) -> (mpsc::Receiver<NewEventStreamConnection>, BuiService<CB>)
 where
     CB: serde::de::DeserializeOwned + Clone + Send,
@@ -662,6 +695,7 @@ where
         tx_new_connection: tx_new_connection,
         events_prefix: events_prefix.to_string(),
         mime_types: conduit_mime_types::Types::new().expect("mime type init"),
+        raw_req_handler,
     };
 
     (rx_new_connection, service)
