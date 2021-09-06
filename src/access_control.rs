@@ -29,7 +29,7 @@ impl AccessInfo {
                 jwt_secret,
             })
         } else {
-            Err(crate::Error::NonLocalhostRequiresPreSharedToken.into())
+            Err(crate::Error::NonLocalhostRequiresPreSharedToken)
         }
     }
 }
@@ -47,8 +47,8 @@ impl AccessControl {
     /// The address to bind the server to (e.g. `0.0.0.0`)
     pub(crate) fn bind_addr(&self) -> &SocketAddr {
         match self {
-            &AccessControl::Insecure(ref addr) => addr,
-            &AccessControl::WithToken(ref info) => &info.addr,
+            AccessControl::Insecure(ref addr) => addr,
+            AccessControl::WithToken(ref info) => &info.addr,
         }
     }
 
@@ -61,8 +61,8 @@ impl AccessControl {
 
     pub(crate) fn jwt_secret(&self) -> &[u8] {
         match self {
-            &AccessControl::Insecure(ref _addr) => b"insecure",
-            &AccessControl::WithToken(ref info) => &info.jwt_secret.0,
+            AccessControl::Insecure(ref _addr) => b"insecure",
+            AccessControl::WithToken(ref info) => &info.jwt_secret.0,
         }
     }
 }

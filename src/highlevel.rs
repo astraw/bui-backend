@@ -166,7 +166,7 @@ where
     let addr = auth.bind_addr();
 
     // this will fail unless there is a reactor already
-    let bound = async { hyper::Server::try_bind(&addr) }.await?;
+    let bound = async { hyper::Server::try_bind(addr) }.await?;
 
     let server = bound.serve(new_service);
 
@@ -218,12 +218,11 @@ where
             // send current value on initial connect
             let hc: hyper::body::Bytes = {
                 let shared = shared_arc.write();
-                create_event_source_msg(&shared.as_ref(), event_name2.as_ref().map(|x| x.as_str()))
-                    .into()
+                create_event_source_msg(&shared.as_ref(), event_name2.as_deref()).into()
             };
 
             let typ = ConnectionEventType::Connect(chunk_sender.clone());
-            let session_key = ckey.clone();
+            let session_key = ckey;
             let path = conn_info.path.clone();
             let path2 = conn_info.path.clone();
 
@@ -280,8 +279,7 @@ where
 
                 let mut restore = vec![];
 
-                let event_source_msg =
-                    create_event_source_msg(&new_value, event_name.as_ref().map(|x| x.as_str()));
+                let event_source_msg = create_event_source_msg(&new_value, event_name.as_deref());
 
                 for (connection_key, (session_key, mut tx, path)) in sources_drain {
                     let chunk = event_source_msg.clone().into();

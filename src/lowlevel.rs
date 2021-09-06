@@ -26,8 +26,8 @@ use std::io::Read;
 use serde::{Deserialize, Serialize};
 
 // ---------------------------
-const JSON_TYPE: &'static str = "application/json";
-const JSON_NULL: &'static str = "null";
+const JSON_TYPE: &str = "application/json";
+const JSON_NULL: &str = "null";
 
 /// The claims validated using JSON Web Tokens.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -141,7 +141,7 @@ where
     CB: serde::de::DeserializeOwned + Clone + Send,
 {
     fn fullpath(&self, path: &str) -> String {
-        assert!(path.starts_with("/")); // security check
+        assert!(path.starts_with('/')); // security check
         let path = std::path::PathBuf::from(path)
             .strip_prefix("/")
             .unwrap()
@@ -191,8 +191,8 @@ where
 
     fn get_next_connection_key(&self) -> ConnectionKey {
         let mut nk = self.next_connection_key.lock();
-        let result = nk.clone();
-        nk.0 = nk.0 + 1;
+        let result = *nk;
+        nk.0 += 1;
         result
     }
 
@@ -279,8 +279,8 @@ where
                     {
                         let conn_info = NewEventStreamConnection {
                             chunk_sender: tx_event_stream,
-                            session_key: session_key,
-                            connection_key: connection_key,
+                            session_key,
+                            connection_key,
                             path: path.to_string(),
                         };
 
@@ -306,11 +306,10 @@ where
                         rx_event_stream.map(|chunk| Ok::<_, hyper::Error>(chunk));
                     resp.body(hyper::Body::wrap_stream(rx_event_stream2))?
                 } else {
-                    let estr = format!(
-                        "Event request does not specify \
+                    let estr = "Event request does not specify \
                         'Accept' or does not accept the required \
                         'text/event-stream'"
-                    );
+                        .to_string();
                     warn!("{}", estr);
                     let e = ErrorsBackToBrowser { errors: vec![estr] };
                     let body_str = serde_json::to_string(&e).unwrap();
@@ -373,9 +372,7 @@ where
     let body = req.into_body();
     use futures::stream::StreamExt;
     let chunks: Vec<Result<hyper::body::Bytes, hyper::Error>> = body.collect().await;
-    use std::iter::FromIterator;
-    let chunks: Result<Vec<hyper::body::Bytes>, hyper::Error> =
-        Result::from_iter(chunks.into_iter());
+    let chunks: Result<Vec<hyper::body::Bytes>, hyper::Error> = chunks.into_iter().collect();
     let chunks: Vec<hyper::body::Bytes> = chunks?;
 
     let data: Vec<u8> = chunks.into_iter().fold(vec![], |mut buf, chunk| {
@@ -419,21 +416,17 @@ where
 
                 // Send the payload to callback.
                 let r0 = match x {
-                    Ok(()) => {
-                        let resp = resp0
-                            .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
-                            .body(JSON_NULL.into())
-                            .expect("response");
-                        resp
-                    }
+                    Ok(()) => resp0
+                        .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
+                        .body(JSON_NULL.into())
+                        .expect("response"),
                     Err(e) => {
                         error!("internal server error: {:?}", e);
-                        let resp = resp0
+                        resp0
                             .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
                             .status(StatusCode::INTERNAL_SERVER_ERROR)
                             .body(JSON_NULL.into())
-                            .expect("response");
-                        resp
+                            .expect("response")
                     }
                 };
                 Ok(r0)
@@ -494,8 +487,7 @@ fn get_session_key<'a>(
                 return Ok(ValidLogin::NeedsSessionKey);
             } else {
                 warn!("incorrect token in URI: {}", value);
-                let estr = format!("incorrect token in URI");
-                errors.push(estr);
+                errors.push("incorrect token in URI".to_string());
             }
         }
     }
@@ -516,7 +508,7 @@ fn get_session_key<'a>(
                                 ..Default::default()
                             };
                             match jsonwebtoken::decode::<JwtClaims>(
-                                &encoded,
+                                encoded,
                                 decoding_key,
                                 &validation,
                             )
@@ -549,7 +541,7 @@ fn get_session_key<'a>(
     // If we are here, we got no (valid) session key.
     debug!("no (valid) session key found");
     match valid_token {
-        &AccessToken::NoToken => {
+        AccessToken::NoToken => {
             debug!("no token needed, will give new session key");
             Ok(ValidLogin::NeedsSessionKey)
         }
@@ -587,7 +579,7 @@ where
             let pairs = url::form_urlencoded::parse(query.unwrap_or("").as_bytes());
 
             get_session_key(
-                &req.headers(),
+                req.headers(),
                 pairs,
                 &self.config.cookie_name,
                 &decoding_key,
@@ -600,39 +592,37 @@ where
             res_session_key, req
         );
 
-        if req.method() == &Method::POST {
-            if req.uri().path() == "/callback" {
-                let login_info = match res_session_key {
-                    Ok(login_info) => login_info,
-                    Err(errors) => {
-                        warn!("no (valid) session key in callback");
-                        let body_str = serde_json::to_string(&errors).unwrap();
-                        let resp = http::Response::builder()
-                            .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
-                            .status(StatusCode::BAD_REQUEST)
-                            .body(body_str.into())
-                            .expect("response");
-                        return Box::pin(futures::future::ok(resp));
-                    }
-                };
+        if req.method() == Method::POST && req.uri().path() == "/callback" {
+            let login_info = match res_session_key {
+                Ok(login_info) => login_info,
+                Err(errors) => {
+                    warn!("no (valid) session key in callback");
+                    let body_str = serde_json::to_string(&errors).unwrap();
+                    let resp = http::Response::builder()
+                        .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
+                        .status(StatusCode::BAD_REQUEST)
+                        .body(body_str.into())
+                        .expect("response");
+                    return Box::pin(futures::future::ok(resp));
+                }
+            };
 
-                let mut resp0 = http::Response::builder();
-                let session_key = match login_info {
-                    ValidLogin::NeedsSessionKey => {
-                        let (resp2, session_key) = self.do_set_cookie_x(resp0);
-                        resp0 = resp2;
-                        session_key
-                    }
-                    ValidLogin::ExistingSession(k) => k,
-                };
+            let mut resp0 = http::Response::builder();
+            let session_key = match login_info {
+                ValidLogin::NeedsSessionKey => {
+                    let (resp2, session_key) = self.do_set_cookie_x(resp0);
+                    resp0 = resp2;
+                    session_key
+                }
+                ValidLogin::ExistingSession(k) => k,
+            };
 
-                return Box::pin(handle_callback(
-                    self.callback_listener.clone(),
-                    session_key,
-                    resp0,
-                    req,
-                ));
-            }
+            return Box::pin(handle_callback(
+                self.callback_listener.clone(),
+                session_key,
+                resp0,
+                req,
+            ));
         }
 
         let resp = http::Response::builder();
@@ -640,7 +630,7 @@ where
         let login_info = match res_session_key {
             Ok(login_info) => login_info,
             Err(_errors) => {
-                let estr = format!("No (valid) token in request.");
+                let estr = "No (valid) token in request.".to_string();
                 let errors = ErrorsBackToBrowser { errors: vec![estr] };
 
                 let body_str = serde_json::to_string(&errors).unwrap();
@@ -686,13 +676,13 @@ where
     let (tx_new_connection, rx_new_connection) = mpsc::channel(channel_size);
 
     let service = BuiService {
-        config: config,
+        config,
         callback_listener: Arc::new(Mutex::new(None)),
-        next_connection_key: next_connection_key,
+        next_connection_key,
         jwt_secret: auth.jwt_secret().to_vec(),
         encoding_key: jsonwebtoken::EncodingKey::from_secret(auth.jwt_secret()),
-        valid_token: auth.token().clone(),
-        tx_new_connection: tx_new_connection,
+        valid_token: auth.token(),
+        tx_new_connection,
         events_prefix: events_prefix.to_string(),
         mime_types: conduit_mime_types::Types::new().expect("mime type init"),
         raw_req_handler,
