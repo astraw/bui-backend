@@ -11,7 +11,7 @@ crate-type = ["cdylib", "rlib"]
 yew = "0.18"
 web-sys = {version="0.3", features=["EventSource"]}
 anyhow = "1.0"
-gloo = { version = "0.2.1" }
+gloo = "0.3"
 wasm-bindgen = "^0.2"
 log = "0.4"
 wasm-logger = "0.2.0"
