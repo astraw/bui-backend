@@ -30,7 +30,7 @@ jsonwebtoken = "7"
 uuid = { version = "0.8", features = ["v4", "serde"] }
 thiserror = "1.0"
 cookie = "0.15"
-conduit-mime-types = "0.7"
+conduit-mime-types = "0.8"
 
 [features]
 default = ["bundle_files"]
