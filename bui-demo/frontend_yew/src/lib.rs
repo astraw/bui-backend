@@ -1,34 +1,40 @@
+use std::{fmt::{self, Display, Formatter, Debug}, error::Error};
+
+use gloo_events::EventListener;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::{JsCast, JsValue};
+
+use web_sys::{Event, EventSource, HtmlInputElement, MessageEvent};
+use wasm_bindgen_futures::JsFuture;
 
 use yew::events::KeyboardEvent;
-use yew::format::Json;
 use yew::prelude::*;
-
-use yew::services::fetch::{Credentials, FetchOptions, FetchService, FetchTask, Request, Response};
-
-use yew_event_source::{EventSourceService, EventSourceStatus, EventSourceTask};
 
 use bui_demo_data::{Callback, Shared};
 
 pub struct App {
-    link: ComponentLink<Self>,
+    es: EventSource,
     shared: Option<Shared>,
-    es: EventSourceTask,
-    ft: Option<FetchTask>,
     local_name: String,
+    _listener: EventListener,
+}
+
+pub enum FetchState {
+    Fetching,
+    Success,
+    Failed(FetchError),
 }
 
 pub enum Msg {
     /// We got new data from the backend.
-    EsReady(Result<Shared, anyhow::Error>),
-    /// Trigger a check of the event source state.
-    EsCheckState,
+    EsReady(Result<Shared, serde_json::Error>),
     /// Update our local copy of our name. (E.g. the user typed a key.)
     UpdateName(String),
     /// We want to update name on the server. (E.g. the user pressed Enter.)
     SendName,
     /// We want to update the recording status on the server. (E.g. the user clicked the button.)
     ToggleRecording,
+    SendMessageFetchState(FetchState),
     Ignore,
 }
 
@@ -36,33 +42,36 @@ impl Component for App {
     type Message = Msg;
     type Properties = ();
 
-    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let task = {
-            let callback = link.callback(|Json(data)| Msg::EsReady(data));
-            let notification = link.callback(|status| {
-                if status == EventSourceStatus::Error {
-                    log::error!("event source error");
-                }
-                Msg::EsCheckState
-            });
-            let mut task = EventSourceService::new()
-                .connect("events", notification)
-                .unwrap();
-            task.add_event_listener("bui_backend", callback);
-            task
-        };
+    fn create(ctx: &Context<Self>) -> Self {
+        let es = EventSource::new("events")
+            .map_err(|js_value: JsValue| {
+                let err: js_sys::Error = js_value.dyn_into().unwrap();
+                err
+            })
+            .unwrap();
+
+        let cb = ctx.link().callback(|bufstr: String| {
+            Msg::EsReady(serde_json::from_str(&bufstr))
+        });
+        let listener = EventListener::new(&es, "bui_backend", move |event: &Event| {
+            let event = event.dyn_ref::<MessageEvent>().unwrap();
+            let text = event.data().as_string().unwrap();
+            cb.emit(text);
+        });
 
         Self {
-            link,
+            es,
             shared: None,
-            es: task,
-            ft: None,
             local_name: "".to_string(),
+            _listener: listener,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
+            Msg::SendMessageFetchState(_fetch_state) => {
+                // pass
+            }
             Msg::EsReady(response) => {
                 match response {
                     Ok(data_result) => {
@@ -73,15 +82,20 @@ impl Component for App {
                     }
                 };
             }
-            Msg::EsCheckState => {
-                return true;
-            }
             Msg::UpdateName(name) => {
                 self.local_name = name;
             }
             Msg::SendName => {
                 let name = self.local_name.clone();
-                self.ft = self.send_message(&Callback::SetName(name));
+
+                ctx.link().send_future(async {
+                    match post_callback(Callback::SetName(name)).await {
+                        Ok(()) => Msg::SendMessageFetchState(FetchState::Success),
+                        Err(err) => Msg::SendMessageFetchState(FetchState::Failed(err)),
+                    }
+                });
+                ctx.link()
+                .send_message(Msg::SendMessageFetchState(FetchState::Fetching));
                 return false; // Don't update DOM, do that when backend notifies us of new state.
             }
             Msg::ToggleRecording => {
@@ -90,7 +104,15 @@ impl Component for App {
                 } else {
                     false
                 };
-                self.ft = self.send_message(&Callback::SetIsRecording(new_value));
+
+                ctx.link().send_future(async move {
+                    match post_callback(Callback::SetIsRecording(new_value)).await {
+                        Ok(()) => Msg::SendMessageFetchState(FetchState::Success),
+                        Err(err) => Msg::SendMessageFetchState(FetchState::Failed(err)),
+                    }
+                });
+                ctx.link()
+                .send_message(Msg::SendMessageFetchState(FetchState::Fetching));
                 return false; // Don't update DOM, do that when backend notifies us of new state.
             }
             Msg::Ignore => {
@@ -100,17 +122,16 @@ impl Component for App {
         true
     }
 
-    fn change(&mut self, _: Self::Properties) -> ShouldRender {
-        false
-    }
-
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
             <div>
                 { self.view_ready_state() }
                 { self.view_shared() }
-                { self.view_input() }
-                <button onclick=self.link.callback(|_| Msg::ToggleRecording)>{ "Toggle recording" }</button>
+                { self.view_input(ctx) }
+                <button
+                    onclick={ctx.link().callback(|_| Msg::ToggleRecording)}>
+                    { "Toggle recording" }
+                </button>
             </div>
         }
     }
@@ -135,44 +156,61 @@ impl App {
         }
     }
 
-    fn view_input(&self) -> Html {
+    fn view_input(&self, ctx: &Context<Self>) -> Html {
         html! {
             <input placeholder="name"
-                   value=self.local_name.clone()
-                   oninput=self.link.callback(|e: InputData| Msg::UpdateName(e.value))
-                   onblur=self.link.callback(move|_| Msg::SendName)
-                   onkeypress=self.link.callback(|e: KeyboardEvent| {
+                   value={self.local_name.clone()}
+                   oninput={ctx.link().callback(|e: InputEvent| {
+                      let input: HtmlInputElement = e.target_unchecked_into();
+                      Msg::UpdateName(input.value())
+                   })}
+                   onblur={ctx.link().callback(move|_| Msg::SendName)}
+                   onkeypress={ctx.link().callback(|e: KeyboardEvent| {
                        if e.key() == "Enter" { Msg::SendName } else { Msg::Ignore }
-                   }) />
+                   })}
+            />
         }
     }
+}
 
-    fn send_message(&mut self, msg: &Callback) -> Option<yew::services::fetch::FetchTask> {
-        let post_request = Request::post("callback")
-            .header("Content-Type", "application/json;charset=UTF-8")
-            .body(Json(msg))
-            .expect("Failed to build request.");
-        let callback = self
-            .link
-            .callback(move |resp: Response<Result<String, _>>| {
-                match resp.body() {
-                    &Ok(ref _s) => {}
-                    &Err(ref e) => {
-                        log::error!("Error when sending message: {:?}", e);
-                    }
-                }
-                Msg::Ignore
-            });
-        let mut options = FetchOptions::default();
-        options.credentials = Some(Credentials::SameOrigin);
-        match FetchService::fetch_with_options(post_request, options, callback) {
-            Ok(task) => Some(task),
-            Err(err) => {
-                log::error!("sending message failed with error: {}", err);
-                None
-            }
-        }
+/// Something wrong has occurred while fetching an external resource.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FetchError {
+    err: JsValue,
+}
+impl Display for FetchError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        Debug::fmt(&self.err, f)
     }
+}
+impl Error for FetchError {}
+
+impl From<JsValue> for FetchError {
+    fn from(value: JsValue) -> Self {
+        Self { err: value }
+    }
+}
+
+async fn post_callback(msg: Callback) -> Result<(), FetchError> {
+    use web_sys::{RequestInit, Response, Request};
+    let mut opts = RequestInit::new();
+    opts.method("POST");
+    // opts.mode(web_sys::RequestMode::Cors);
+    // opts.headers("Content-Type", "application/json;charset=UTF-8")
+    // set SameOrigin
+    let buf = serde_json::to_string(&msg).unwrap();
+    opts.body(Some(&JsValue::from_str(&buf)));
+
+    let url = "callback";
+    let request = Request::new_with_str_and_init(url, &opts)?;
+
+    let window = gloo_utils::window();
+    let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
+    let resp: Response = resp_value.dyn_into().unwrap();
+
+    let text = JsFuture::from(resp.text()?).await?;
+    let _text_string = text.as_string().unwrap();
+    Ok(())
 }
 
 #[wasm_bindgen(start)]
