@@ -105,7 +105,6 @@ where
     valid_token: AccessToken,
     tx_new_connection: NewConnectionSender,
     events_prefix: String,
-    mime_types: conduit_mime_types::Types,
     raw_req_handler: Option<RawReqHandler>,
 }
 
@@ -322,8 +321,7 @@ where
                     Some(buf) => {
                         let path = std::path::Path::new(path);
                         let mime_type = match path.extension().map(|x| x.to_str()).unwrap_or(None) {
-                            Some("wasm") => Some("application/wasm"),
-                            Some(ext) => self_.mime_types.get_mime_type(ext),
+                            Some(ext) => conduit_mime_types::get_mime_type(ext),
                             None => None,
                         };
 
@@ -684,7 +682,6 @@ where
         valid_token: auth.token(),
         tx_new_connection,
         events_prefix: events_prefix.to_string(),
-        mime_types: conduit_mime_types::Types::new().expect("mime type init"),
         raw_req_handler,
     };
 
