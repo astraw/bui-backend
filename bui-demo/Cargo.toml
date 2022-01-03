@@ -17,7 +17,7 @@ includedir = {version="0.6", optional=true}
 phf = {version="0.8", optional=true}
 serde = "1.0"
 serde_json = "1.0"
-clap = "2.20.0"
+clap = "3.0.0"
 parking_lot = "0.11"
 
 qrcodegen = "1.4"
