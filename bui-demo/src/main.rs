@@ -223,7 +223,7 @@ async fn main() -> Result<(), Error> {
     let matches = clap::App::new("CARGO_PKG_NAME")
         .version(env!("CARGO_PKG_VERSION"))
         .arg(
-            clap::Arg::with_name("JWT_SECRET")
+            clap::Arg::new("JWT_SECRET")
                 .long("jwt-secret")
                 .help(
                     "Specifies the JWT secret. Falls back to the JWT_SECRET \
@@ -233,7 +233,7 @@ async fn main() -> Result<(), Error> {
                 .takes_value(true),
         )
         .arg(
-            clap::Arg::with_name("address")
+            clap::Arg::new("address")
                 .long("address")
                 .help("Bind the server to this address")
                 .default_value("localhost:3410")
