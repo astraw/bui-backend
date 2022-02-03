@@ -26,7 +26,7 @@ hyper = {version="0.14", features=["server","http1","tcp","stream"]}
 log = "0.4"
 serde = {version="1.0",features=["derive"]}
 serde_json = {version = "1.0"}
-jsonwebtoken = "7"
+jsonwebtoken = "8"
 uuid = { version = "0.8", features = ["v4", "serde"] }
 thiserror = "1.0"
 cookie = "0.16"
