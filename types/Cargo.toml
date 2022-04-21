@@ -7,7 +7,7 @@ authors = ["Andrew Straw <strawman@astraw.com>"]
 edition = "2018"
 
 [dependencies]
-uuid = { version = "0.8", features = ["serde"] }
+uuid = { version = "1.0", features = ["serde"] }
 serde = {version="1.0", features=["derive"]}
 
 [features]
