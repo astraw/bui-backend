@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 async-change-tracker = "0.3.2"
-bui-backend = {version="0.13", default-features = false, path=".."}
+bui-backend = {version="0.14", default-features = false, path=".."}
 bui-backend-types = {version="0.8", path="../types", features=["uuid-v4"]}
 log = "0.4"
 env_logger = "0.9"
