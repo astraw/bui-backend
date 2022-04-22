@@ -43,8 +43,8 @@ impl AccessToken {
     /// Check if input string matches.
     pub fn does_match(&self, test_str: &str) -> bool {
         match self {
-            &AccessToken::NoToken => true,
-            &AccessToken::PreSharedToken(ref s) => s == test_str,
+            AccessToken::NoToken => true,
+            AccessToken::PreSharedToken(ref s) => s == test_str,
         }
     }
 }

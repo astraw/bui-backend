@@ -136,8 +136,8 @@ fn address(matches: &clap::ArgMatches) -> std::net::SocketAddr {
 
 fn is_loopback(addr_any: &std::net::SocketAddr) -> bool {
     match addr_any {
-        &std::net::SocketAddr::V4(addr) => addr.ip().is_loopback(),
-        &std::net::SocketAddr::V6(addr) => addr.ip().is_loopback(),
+        std::net::SocketAddr::V4(addr) => addr.ip().is_loopback(),
+        std::net::SocketAddr::V6(addr) => addr.ip().is_loopback(),
     }
 }
 
@@ -146,16 +146,17 @@ fn jwt_secret(matches: &clap::ArgMatches, required: bool) -> Result<Vec<u8>, Err
     match matches
         .value_of("JWT_SECRET")
         .map(|s| s.into())
-        .or(std::env::var("JWT_SECRET").ok())
+        .or_else(|| std::env::var("JWT_SECRET").ok())
         .map(|s| s.into_bytes())
     {
         Some(secret) => Ok(secret),
         None => {
             if required {
-                Err(ErrorKind::Raw(format!(
+                Err(ErrorKind::Raw(
                     "The --jwt-secret argument must be passed or the JWT_SECRET environment \
                 variable must be set when not using loopback interface."
-                ))
+                        .to_string(),
+                )
                 .into())
             } else {
                 // insecure secret when using loopback interface
@@ -214,7 +215,7 @@ fn display_qr_url(url: &str) {
     use qrcodegen::{QrCode, QrCodeEcc};
     use std::io::{stdout, Write};
 
-    let qr = QrCode::encode_text(&url, QrCodeEcc::Low).unwrap();
+    let qr = QrCode::encode_text(url, QrCodeEcc::Low).unwrap();
 
     let stdout = stdout();
     let mut stdout_handle = stdout.lock();

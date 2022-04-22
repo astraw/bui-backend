@@ -305,8 +305,7 @@ async fn handle_req<CB>(
                     );
 
                     use futures::stream::StreamExt;
-                    let rx_event_stream2 =
-                        rx_event_stream.map(|chunk| Ok::<_, hyper::Error>(chunk));
+                    let rx_event_stream2 = rx_event_stream.map(Ok::<_, hyper::Error>);
                     resp.body(hyper::Body::wrap_stream(rx_event_stream2))?
                 } else {
                     let estr = "Event request does not specify \
