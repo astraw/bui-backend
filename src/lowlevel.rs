@@ -1,6 +1,6 @@
 //! Implements a web server for a Browser User Interface (BUI).
 
-use std::pin::Pin;
+use std::{error::Error as StdError, future::Future, pin::Pin};
 
 use http;
 use hyper;
@@ -12,7 +12,6 @@ use hyper::header::ACCEPT;
 use hyper::{Method, StatusCode};
 
 use futures::channel::mpsc;
-use futures::Future;
 
 use parking_lot::Mutex;
 use std::sync::Arc;
@@ -70,10 +69,6 @@ pub struct NewEventStreamConnection {
 
 type NewConnectionSender = mpsc::Sender<NewEventStreamConnection>;
 
-pub(crate) type CallbackFnType<CB> =
-    Box<dyn Fn(CallbackDataAndSession<CB>) -> futures::future::Ready<Result<(), ()>> + Send>;
-pub(crate) type CbFuncArc<CB> = Arc<Mutex<Option<CallbackFnType<CB>>>>;
-
 /// Handles HTTP requests not handled by bui_backend.
 ///
 /// For any request, bui_backend will first check if it can respond
@@ -89,16 +84,66 @@ pub type RawReqHandler = Arc<
     >,
 >;
 
+/// Implement this trait to handle callbacks.
+pub trait CallbackHandler: Send + dyn_clone::DynClone {
+    /// The type of the callback-provided data.
+    type Data;
+
+    /// HTTP request to "/callback" has been made with payload which as been
+    /// deserialized into `Self::Data` and session data stored in
+    /// [CallbackDataAndSession].
+    fn call<'a>(
+        &'a self,
+        data_sess: CallbackDataAndSession<Self::Data>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn StdError + Send>>> + Send + 'a>>;
+}
+
+dyn_clone::clone_trait_object!(<CB> CallbackHandler<Data = CB>);
+
+/// A dummy callback handler that does nothing.
+///
+/// This is provided as an example.
+#[derive(Clone)]
+pub struct NoopCallbackHandler {}
+
+impl CallbackHandler for NoopCallbackHandler {
+    type Data = ();
+
+    fn call<'a>(
+        &'a self,
+        _: CallbackDataAndSession<Self::Data>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn StdError + Send>>> + Send + 'a>> {
+        Box::pin(async { Ok(()) })
+    }
+}
+
+/// A callback handler that always returns an error.
+///
+/// This is provided for cases in which no callbacks are desired and also
+/// demonstrates error handling.
+#[derive(Clone)]
+pub struct ErrorCallbackHandler {}
+
+impl CallbackHandler for ErrorCallbackHandler {
+    type Data = ();
+
+    fn call<'a>(
+        &'a self,
+        _: CallbackDataAndSession<Self::Data>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn StdError + Send>>> + Send + 'a>> {
+        let e = Box::new(ErrorCallbackError {});
+        let e = e as Box<dyn StdError + Send>;
+        Box::pin(async { Err(e) })
+    }
+}
+
 /// Handle HTTP requests and coordinate responses to data updates.
 ///
 /// Implements `hyper::server::Service` to act as HTTP server and handle requests.
 #[derive(Clone)]
-pub struct BuiService<CB>
-where
-    CB: serde::de::DeserializeOwned + Clone + Send,
-{
+pub struct BuiService<CB> {
     config: Config,
-    callback_listener: CbFuncArc<CB>,
+    callback_handler: Box<dyn Send + CallbackHandler<Data = CB>>,
     next_connection_key: Arc<Mutex<ConnectionKey>>,
     jwt_secret: Vec<u8>,
     encoding_key: jsonwebtoken::EncodingKey,
@@ -108,37 +153,7 @@ where
     raw_req_handler: Option<RawReqHandler>,
 }
 
-fn _test_bui_service_is_clone<CB>()
-where
-    CB: serde::de::DeserializeOwned + Clone + Send,
-{
-    // Compile-time test to ensure BuiService implements Clone trait.
-    fn implements<T: Clone>() {}
-    implements::<BuiService<CB>>();
-}
-
-fn _test_bui_service_is_send<CB>()
-where
-    CB: serde::de::DeserializeOwned + Clone + Send,
-{
-    // Compile-time test to ensure BuiService implements Send trait.
-    fn implements<T: Send>() {}
-    implements::<BuiService<CB>>();
-}
-
-fn _test_callback_data_is_send<CB>()
-where
-    CB: serde::de::DeserializeOwned + Clone + Send,
-{
-    // Compile-time test to ensure CallbackDataAndSession implements Send trait.
-    fn implements<T: Send>() {}
-    implements::<CallbackDataAndSession<CB>>();
-}
-
-impl<CB> BuiService<CB>
-where
-    CB: serde::de::DeserializeOwned + Clone + Send,
-{
+impl<CB> BuiService<CB> {
     fn fullpath(&self, path: &str) -> String {
         assert!(path.starts_with('/')); // security check
         let path = std::path::PathBuf::from(path)
@@ -195,14 +210,6 @@ where
         result
     }
 
-    /// Get a stream of callback events.
-    pub fn set_callback_listener(&mut self, f: CallbackFnType<CB>) -> Option<CallbackFnType<CB>> {
-        let mut cbl = self.callback_listener.lock();
-        let previous = cbl.take();
-        cbl.get_or_insert(f);
-        previous
-    }
-
     fn do_set_cookie_x(
         &self,
         resp: http::response::Builder,
@@ -236,10 +243,7 @@ async fn handle_req<CB>(
     mut resp: http::response::Builder,
     login_info: ValidLogin,
     raw_req_handler: Option<RawReqHandler>,
-) -> Result<http::Response<hyper::Body>, http::Error>
-where
-    CB: serde::de::DeserializeOwned + Clone + Send,
-{
+) -> Result<http::Response<hyper::Body>, http::Error> {
     // TODO: convert this to be async yield when blocking on IO operations.
     let session_key = match login_info {
         ValidLogin::NeedsSessionKey => {
@@ -357,60 +361,47 @@ where
     Ok(resp_final)
 }
 
-async fn handle_callback<CB>(
-    cbfunc: CbFuncArc<CB>,
+fn handle_callback<CB>(
+    handler: Box<dyn CallbackHandler<Data = CB> + Send>,
     session_key: bui_backend_types::SessionKey,
     resp0: http::response::Builder,
     req: http::Request<hyper::Body>,
-) -> Result<http::Response<hyper::Body>, hyper::Error>
+) -> Pin<Box<dyn Future<Output = Result<http::Response<hyper::Body>, hyper::Error>> + Send>>
 where
-    CB: 'static + serde::de::DeserializeOwned + Clone + Send,
+    CB: 'static + serde::de::DeserializeOwned + Send,
 {
-    // fold all chunks into one Vec<u8>
-    let body = req.into_body();
-    use futures::stream::StreamExt;
-    let chunks: Vec<Result<hyper::body::Bytes, hyper::Error>> = body.collect().await;
-    let chunks: Result<Vec<hyper::body::Bytes>, hyper::Error> = chunks.into_iter().collect();
-    let chunks: Vec<hyper::body::Bytes> = chunks?;
+    let result = async move {
+        // fold all chunks into one Vec<u8>
+        let body = req.into_body();
+        use futures::stream::StreamExt;
+        let chunks: Vec<Result<hyper::body::Bytes, hyper::Error>> = body.collect().await;
+        let chunks: Result<Vec<hyper::body::Bytes>, hyper::Error> = chunks.into_iter().collect();
+        let chunks: Vec<hyper::body::Bytes> = chunks?;
 
-    let data: Vec<u8> = chunks.into_iter().fold(vec![], |mut buf, chunk| {
-        trace!("got chunk: {}", String::from_utf8_lossy(&chunk));
-        buf.extend_from_slice(&*chunk);
-        buf
-    });
+        let data: Vec<u8> = chunks.into_iter().fold(vec![], |mut buf, chunk| {
+            trace!("got chunk: {}", String::from_utf8_lossy(&chunk));
+            buf.extend_from_slice(&*chunk);
+            buf
+        });
 
-    // parse data
+        // parse data
 
-    // Here we convert from a Vec<u8> JSON buf to our
-    // generic type `CB` whose definition can be shared
-    // between backend and frontend if using a Rust frontend.
-    // (If not using a rust frontend, the payload should be
-    // constructed such that this conversion succeeds.
-    match serde_json::from_slice::<CB>(&data) {
-        Ok(payload) => {
-            // valid data, parse it
+        // Here we convert from a Vec<u8> JSON buf to our
+        // generic type `CB` whose definition can be shared
+        // between backend and frontend if using a Rust frontend.
+        // (If not using a rust frontend, the payload should be
+        // constructed such that this conversion succeeds.
+        match serde_json::from_slice::<CB>(&data) {
+            Ok(payload) => {
+                let args2 = CallbackDataAndSession {
+                    payload,
+                    session_key,
+                };
 
-            // Here create a future if we have a callback function but do not
-            // only hold the lock briefly. Release the lock before awaiting the
-            // result.
-            let opt_fut = {
-                let opt_this_cbfunc = cbfunc.lock();
-
-                if let Some(ref this_cbfunc) = *opt_this_cbfunc {
-                    let my_cb: &CallbackFnType<CB> = this_cbfunc;
-                    let args = CallbackDataAndSession {
-                        payload,
-                        session_key,
-                    };
-
-                    Some(my_cb(args))
-                } else {
-                    None
-                }
-            };
-
-            if let Some(fut) = opt_fut {
-                let x = fut.await;
+                let x = {
+                    let fut = handler.call(args2);
+                    fut.await
+                };
 
                 // Send the payload to callback.
                 let r0 = match x {
@@ -428,17 +419,11 @@ where
                     }
                 };
                 Ok(r0)
-            } else {
-                error!("no callback handler set");
-                let resp = resp0
-                    .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
-                    .body(JSON_NULL.into())
-                    .expect("response");
-                Ok(resp)
             }
+            Err(e) => Ok(on_json_parse_err(e)),
         }
-        Err(e) => Ok(on_json_parse_err(e)),
-    }
+    };
+    Box::pin(result)
 }
 
 fn on_json_parse_err(e: serde_json::Error) -> http::Response<hyper::Body> {
@@ -456,6 +441,16 @@ fn on_json_parse_err(e: serde_json::Error) -> http::Response<hyper::Body> {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct ErrorsBackToBrowser {
     errors: Vec<String>,
+}
+
+#[derive(Debug)]
+struct ErrorCallbackError {}
+impl StdError for ErrorCallbackError {}
+
+impl std::fmt::Display for ErrorCallbackError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "ErrorCallbackError")
+    }
 }
 
 /// User can login either with URL query param (no session key provided) or
@@ -616,7 +611,7 @@ where
             };
 
             return Box::pin(handle_callback(
-                self.callback_listener.clone(),
+                self.callback_handler.clone(),
                 session_key,
                 resp0,
                 req,
@@ -665,17 +660,15 @@ pub fn launcher<CB>(
     channel_size: usize,
     events_prefix: &str,
     raw_req_handler: Option<RawReqHandler>,
-) -> (mpsc::Receiver<NewEventStreamConnection>, BuiService<CB>)
-where
-    CB: serde::de::DeserializeOwned + Clone + Send,
-{
+    callback_handler: Box<dyn Send + CallbackHandler<Data = CB>>,
+) -> (mpsc::Receiver<NewEventStreamConnection>, BuiService<CB>) {
     let next_connection_key = Arc::new(Mutex::new(ConnectionKey(0)));
 
     let (tx_new_connection, rx_new_connection) = mpsc::channel(channel_size);
 
     let service = BuiService {
         config,
-        callback_listener: Arc::new(Mutex::new(None)),
+        callback_handler,
         next_connection_key,
         jwt_secret: auth.jwt_secret().to_vec(),
         encoding_key: jsonwebtoken::EncodingKey::from_secret(auth.jwt_secret()),

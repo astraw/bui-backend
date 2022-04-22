@@ -21,7 +21,7 @@ use hyper::service::make_service_fn;
 use bui_backend_types::AccessToken;
 
 use crate::access_control;
-use crate::lowlevel::{CallbackFnType, NewEventStreamConnection};
+use crate::lowlevel::NewEventStreamConnection;
 use crate::Error;
 
 // ------
@@ -51,11 +51,7 @@ pub struct ConnectionEvent {
 // ------
 
 /// Maintain state within a BUI application.
-pub struct BuiAppInner<T, CB>
-where
-    T: Clone + PartialEq + Serialize + Send,
-    CB: 'static + serde::de::DeserializeOwned + Clone + Send,
-{
+pub struct BuiAppInner<T, CB> {
     i_shared_arc: Arc<RwLock<ChangeTracker<T>>>,
     i_txers: Arc<RwLock<HashMap<ConnectionKey, (SessionKey, EventChunkSender, String)>>>,
     i_bui_server: BuiService<CB>,
@@ -63,11 +59,7 @@ where
     local_addr: std::net::SocketAddr,
 }
 
-impl<'a, T, CB> BuiAppInner<T, CB>
-where
-    T: Clone + PartialEq + Serialize + Send + 'static,
-    CB: serde::de::DeserializeOwned + Clone + Send + 'static,
-{
+impl<'a, T, CB> BuiAppInner<T, CB> {
     /// Get reference counted reference to the underlying data store.
     pub fn shared_arc(&self) -> &Arc<RwLock<ChangeTracker<T>>> {
         &self.i_shared_arc
@@ -99,11 +91,6 @@ where
                 format!("http://{}/?token={}", self.local_addr, tok)
             }
         }
-    }
-
-    /// Register a function to be called when the user makes a callback.
-    pub fn set_callback_listener(&mut self, f: CallbackFnType<CB>) -> Option<CallbackFnType<CB>> {
-        self.i_bui_server.set_callback_listener(f)
     }
 }
 
@@ -143,8 +130,8 @@ pub async fn create_bui_app_inner<'a, T, CB>(
     bui_server: BuiService<CB>,
 ) -> Result<(mpsc::Receiver<ConnectionEvent>, BuiAppInner<T, CB>), Error>
 where
-    T: Clone + PartialEq + Serialize + 'static + Send + Sync + Unpin,
-    CB: serde::de::DeserializeOwned + Clone + Send + 'static + Unpin,
+    T: Clone + Serialize + 'static + Send + Sync,
+    CB: serde::de::DeserializeOwned + Clone + Send + 'static,
 {
     let (quit_trigger, valve) = stream_cancel::Valve::new();
 

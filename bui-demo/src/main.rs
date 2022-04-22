@@ -47,20 +47,22 @@
 //!     cd frontend_seed && ./build.sh
 //!
 
-use std::net::ToSocketAddrs;
-use std::sync::Arc;
+use std::{error::Error as StdError, future::Future, net::ToSocketAddrs, pin::Pin, sync::Arc};
 
 use parking_lot::RwLock;
 
 use async_change_tracker::ChangeTracker;
-use bui_backend::highlevel::{create_bui_app_inner, BuiAppInner};
-use bui_backend::AccessControl;
+use bui_backend::{
+    highlevel::{create_bui_app_inner, BuiAppInner},
+    AccessControl, CallbackHandler,
+};
 use bui_backend_types::CallbackDataAndSession;
 
 use bui_demo_data::{Callback, Shared};
 
 #[derive(Debug)]
 struct Error {
+    #[allow(dead_code)]
     kind: ErrorKind,
 }
 
@@ -89,6 +91,42 @@ include!(concat!(env!("OUT_DIR"), "/public.rs")); // Despite slash, this works o
 /// The structure that holds our app data
 struct MyApp {
     inner: BuiAppInner<Shared, Callback>,
+}
+
+#[derive(Clone)]
+struct MyCallbackHandler {
+    shared_store: Arc<RwLock<ChangeTracker<Shared>>>,
+}
+
+impl CallbackHandler for MyCallbackHandler {
+    type Data = Callback;
+
+    /// HTTP request to "/callback" has been made with payload which as been
+    /// deserialized into `Self::Data` and session data stored in
+    /// [CallbackDataAndSession].
+    fn call<'a>(
+        &'a self,
+        data_sess: CallbackDataAndSession<Self::Data>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn StdError + Send>>> + Send + 'a>> {
+        let payload = data_sess.payload;
+
+        // Get access to our shared state so we can modify it based on
+        // the browser's callback.
+        let mut shared = self.shared_store.write();
+
+        match payload {
+            Callback::SetIsRecording(bool_value) => {
+                // Update our shared store with the value received.
+                shared.modify(|shared| shared.is_recording = bool_value);
+            }
+            Callback::SetName(name) => {
+                // Update our shared store with the value received.
+                shared.modify(|shared| shared.name = name);
+            }
+        }
+
+        Box::pin(async { Ok(()) })
+    }
 }
 
 fn address(matches: &clap::ArgMatches) -> std::net::SocketAddr {
@@ -139,14 +177,24 @@ impl MyApp {
             name: "".into(),
         })));
 
+        let callback_handler = Box::new(MyCallbackHandler {
+            shared_store: shared_store.clone(),
+        });
+
         let chan_size = 10;
-        let (rx_conn, bui_server) =
-            bui_backend::lowlevel::launcher(config, &auth, chan_size, "/events", None);
+        let (rx_conn, bui_server) = bui_backend::lowlevel::launcher(
+            config,
+            &auth,
+            chan_size,
+            "/events",
+            None,
+            callback_handler,
+        );
 
         let handle = tokio::runtime::Handle::current();
 
         // Create `inner`, which takes care of the browser communication details for us.
-        let (_, mut inner) = create_bui_app_inner(
+        let (_, inner) = create_bui_app_inner(
             handle,
             None,
             &auth,
@@ -156,31 +204,6 @@ impl MyApp {
             bui_server,
         )
         .await?;
-
-        // Make a clone of our shared state Arc which will be moved into our callback handler.
-        let tracker_arc2 = inner.shared_arc().clone();
-
-        // Create a Stream to handle callbacks from clients.
-        inner.set_callback_listener(Box::new(move |msg: CallbackDataAndSession<Callback>| {
-            // This closure is the callback handler called whenever the
-            // client browser sends us something.
-
-            // Get access to our shared state so we can modify it based on
-            // the browser's callback.
-            let mut shared = tracker_arc2.write();
-
-            match msg.payload {
-                Callback::SetIsRecording(bool_value) => {
-                    // Update our shared store with the value received.
-                    shared.modify(|shared| shared.is_recording = bool_value);
-                }
-                Callback::SetName(name) => {
-                    // Update our shared store with the value received.
-                    shared.modify(|shared| shared.name = name);
-                }
-            }
-            futures::future::ok(())
-        }));
 
         // Return our app.
         Ok(MyApp { inner })

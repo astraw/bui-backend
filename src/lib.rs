@@ -201,3 +201,5 @@ pub use access_control::AccessControl;
 
 pub mod highlevel;
 pub mod lowlevel;
+
+pub use lowlevel::CallbackHandler;
