@@ -32,6 +32,7 @@ const JSON_NULL: &str = "null";
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct JwtClaims {
     key: SessionKey,
+    exp: usize, // Required (validate_exp defaults to true in validation). Expiration time (as UTC timestamp)
 }
 
 /// Configuration settings for `BuiService`.
@@ -217,7 +218,10 @@ impl<CB> BuiService<CB> {
         // There was no valid client key in the HTTP header, so generate a
         // new one and set it on client.
         let session_key = SessionKey::new();
-        let claims = JwtClaims { key: session_key };
+        let claims = JwtClaims {
+            key: session_key,
+            exp: 10000000000,
+        };
 
         let token = {
             jsonwebtoken::encode(
@@ -464,7 +468,7 @@ fn get_session_key<'a>(
     map: &hyper::HeaderMap<hyper::header::HeaderValue>,
     query_pairs: url::form_urlencoded::Parse,
     cookie_name: &str,
-    decoding_key: &jsonwebtoken::DecodingKey<'a>,
+    decoding_key: &jsonwebtoken::DecodingKey,
     valid_token: &AccessToken,
 ) -> Result<ValidLogin, ErrorsBackToBrowser> {
     use std::borrow::Cow;
@@ -495,10 +499,7 @@ fn get_session_key<'a>(
                         if c.name() == cookie_name {
                             let encoded = c.value();
                             debug!("jwt_encoded = {}", encoded);
-                            let validation = jsonwebtoken::Validation {
-                                validate_exp: false,
-                                ..Default::default()
-                            };
+                            let validation = jsonwebtoken::Validation::new(Default::default());
                             match jsonwebtoken::decode::<JwtClaims>(
                                 encoded,
                                 decoding_key,
