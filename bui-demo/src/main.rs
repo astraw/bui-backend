@@ -243,7 +243,7 @@ async fn main() -> Result<(), Error> {
     env_logger::init();
 
     // Parse our command-line arguments.
-    let matches = clap::App::new("CARGO_PKG_NAME")
+    let matches = clap::Command::new("CARGO_PKG_NAME")
         .version(env!("CARGO_PKG_VERSION"))
         .arg(
             clap::Arg::new("JWT_SECRET")
