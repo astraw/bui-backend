@@ -232,6 +232,7 @@ impl<CB> BuiService<CB> {
             .unwrap()
         };
         let mut c = cookie::Cookie::new(self.config.cookie_name.clone(), token);
+        c.set_same_site(cookie::SameSite::Strict);
         c.set_http_only(true);
         let resp = resp.header(
             hyper::header::SET_COOKIE,
