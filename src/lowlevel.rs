@@ -6,12 +6,12 @@ use http;
 use hyper;
 #[cfg(feature = "bundle_files")]
 use includedir;
-use {futures, jsonwebtoken, serde, serde_json, std};
 
 use hyper::header::ACCEPT;
 use hyper::{Method, StatusCode};
 
-use futures::channel::mpsc;
+use tokio::sync::mpsc;
+use tokio_stream::StreamExt;
 
 use parking_lot::Mutex;
 use std::sync::Arc;
@@ -57,6 +57,7 @@ pub struct Config {
 pub type EventChunkSender = mpsc::Sender<hyper::body::Bytes>;
 
 /// Wrap the sender to each connected event stream listener.
+#[derive(Debug)]
 pub struct NewEventStreamConnection {
     /// A sink for messages send to each connection (one per client tab).
     pub chunk_sender: EventChunkSender,
@@ -243,7 +244,7 @@ impl<CB> BuiService<CB> {
 }
 
 async fn handle_req<CB>(
-    mut self_: BuiService<CB>,
+    self_: BuiService<CB>,
     req: http::Request<hyper::Body>,
     mut resp: http::response::Builder,
     login_info: ValidLogin,
@@ -284,6 +285,9 @@ async fn handle_req<CB>(
                     let (tx_event_stream, rx_event_stream) =
                         mpsc::channel(self_.config.channel_size);
 
+                    let rx_event_stream =
+                        tokio_stream::wrappers::ReceiverStream::new(rx_event_stream);
+
                     {
                         let conn_info = NewEventStreamConnection {
                             chunk_sender: tx_event_stream,
@@ -292,7 +296,6 @@ async fn handle_req<CB>(
                             path: path.to_string(),
                         };
 
-                        use futures::sink::SinkExt;
                         let send_future = self_.tx_new_connection.send(conn_info);
                         match send_future.await {
                             Ok(()) => {}
@@ -309,7 +312,6 @@ async fn handle_req<CB>(
                             .expect("from_str"),
                     );
 
-                    use futures::stream::StreamExt;
                     let rx_event_stream2 = rx_event_stream.map(Ok::<_, hyper::Error>);
                     resp.body(hyper::Body::wrap_stream(rx_event_stream2))?
                 } else {
@@ -377,7 +379,6 @@ where
     let result = async move {
         // fold all chunks into one Vec<u8>
         let body = req.into_body();
-        use futures::stream::StreamExt;
         let chunks: Vec<Result<hyper::body::Bytes, hyper::Error>> = body.collect().await;
         let chunks: Result<Vec<hyper::body::Bytes>, hyper::Error> = chunks.into_iter().collect();
         let chunks: Vec<hyper::body::Bytes> = chunks?;
@@ -597,7 +598,7 @@ where
                         .status(StatusCode::BAD_REQUEST)
                         .body(body_str.into())
                         .expect("response");
-                    return Box::pin(futures::future::ok(resp));
+                    return Box::pin(std::future::ready(Ok(resp)));
                 }
             };
 
@@ -633,11 +634,11 @@ where
                     .status(StatusCode::BAD_REQUEST)
                     .body(body_str.into())
                     .expect("response");
-                return Box::pin(futures::future::ok(resp));
+                return Box::pin(std::future::ready(Ok(resp)));
             }
         };
 
-        use futures::FutureExt;
+        use futures::future::FutureExt;
         let resp_final = handle_req(
             self.clone(),
             req,

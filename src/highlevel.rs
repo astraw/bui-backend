@@ -2,14 +2,13 @@
 use crate::lowlevel::{BuiService, EventChunkSender};
 use bui_backend_types::{ConnectionKey, SessionKey};
 
-use {futures, hyper, serde, serde_json, std};
-
 use async_change_tracker::ChangeTracker;
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use futures::{channel::mpsc, future::FutureExt, sink::SinkExt, stream::StreamExt};
+use tokio::sync::mpsc;
+
 use parking_lot::RwLock;
 use uuid::Uuid;
 
@@ -137,9 +136,6 @@ where
 
     let bui_server: BuiService<CB> = bui_server; // type annotation
 
-    // This line is just to annotate the type
-    let rx_conn: mpsc::Receiver<NewEventStreamConnection> = rx_conn;
-
     let b2 = bui_server.clone();
 
     type MyError = std::io::Error; // anything that implements std::error::Error and Send
@@ -171,9 +167,11 @@ where
             shutdown_rx.await.ok();
             quit_trigger.cancel();
         });
+        use futures::future::FutureExt;
         handle.spawn(Box::pin(graceful.map(log_and_swallow_err)));
     } else {
         quit_trigger.disable();
+        use futures::future::FutureExt;
         handle.spawn(Box::pin(server.map(log_and_swallow_err)));
     };
 
@@ -190,15 +188,16 @@ where
 
     let shared_arc = inner.i_shared_arc.clone();
     let txers2 = inner.i_txers.clone();
-    let mut new_conn_tx2 = new_conn_tx.clone();
+    let new_conn_tx2 = new_conn_tx.clone();
     let event_name2 = event_name.clone();
 
+    let rx_conn = tokio_stream::wrappers::ReceiverStream::new(rx_conn);
     let mut rx_conn_valve = valve.wrap(rx_conn);
 
     let handle_connections_fut = async move {
-        while let Some(conn_info) = rx_conn_valve.next().await {
+        while let Some(conn_info) = futures::StreamExt::next(&mut rx_conn_valve).await {
             let chunk_sender = conn_info.chunk_sender;
-            let mut chunk_sender: EventChunkSender = chunk_sender; // type annotation only
+            let chunk_sender: EventChunkSender = chunk_sender; // type annotation only
             let ckey = conn_info.session_key;
             let connection_key = conn_info.connection_key;
 
@@ -251,13 +250,12 @@ where
     let txers = inner.i_txers.clone();
     // Create a Stream to handle updates to our shared store.
     let change_listener = {
-        let rx = {
+        let mut rx = {
             let shared = shared_store2.write();
             shared.get_changes(10) // capacity of channel is 10 changes
         };
-        let mut rx_valve = valve.wrap(rx);
         async move {
-            while let Some((_old, new_value)) = rx_valve.next().await {
+            while let Some((_old, new_value)) = futures::StreamExt::next(&mut rx).await {
                 // We need to hold the loc on txers only briefly, so we do this.
                 let sources_drain = {
                     let mut sources = txers.write();
@@ -268,7 +266,7 @@ where
 
                 let event_source_msg = create_event_source_msg(&new_value, event_name.as_deref());
 
-                for (connection_key, (session_key, mut tx, path)) in sources_drain {
+                for (connection_key, (session_key, tx, path)) in sources_drain {
                     let chunk = event_source_msg.clone().into();
                     match tx.send(chunk).await {
                         Ok(()) => {
@@ -280,7 +278,7 @@ where
                                     probably disconnected. {:?}",
                                 e
                             );
-                            let mut nct = new_conn_tx.clone();
+                            let nct = new_conn_tx.clone();
                             let typ = ConnectionEventType::Disconnect;
                             let ce = ConnectionEvent {
                                 typ,
