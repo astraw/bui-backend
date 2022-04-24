@@ -25,10 +25,21 @@ are bundled into executable, plain Javascript frontend):
     # Now point your browser to http://localhost:3410
 
 To run with other options:
-
-    # Use Rust seed frontend, all files bundled into executable:
+    # Use Rust yew frontend, all files bundled into executable:
     # The following line requires building the Rust yew frontend (see below).
     cargo run --no-default-features --features "bundle_files frontend_yew"
+
+    # or
+
+    # Use Rust yew frontend, files served from filesystem for frontend development:
+    # The following line requires building the Rust yew frontend (see below).
+    cargo run --no-default-features --features "serve_files frontend_yew"
+
+    # or
+
+    # Use Rust seed frontend, all files bundled into executable:
+    # The following line requires building the Rust seed frontend (see below).
+    cargo run --no-default-features --features "bundle_files frontend_seed"
 
     # or
 
@@ -48,8 +59,5 @@ used.) Install from https://rustwasm.github.io/wasm-pack/installer/ .
 
     cd frontend_seed && ./build.sh
 
-## Building the Rust yew frontend
-
-    cd frontend_yew && ./build.sh
 
 License: MIT/Apache-2.0
