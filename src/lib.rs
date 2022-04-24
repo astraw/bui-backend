@@ -13,13 +13,15 @@
 //!
 //! This library enables an application to serve a [Browser User Interface
 //! (BUI)](https://en.wikipedia.org/wiki/Browser_user_interface). The browser
-//! becomes your GUI. The API is based on futures and reactively pushes state to
-//! the browser. Assets can be served from the filesystem or bundled in the
-//! executable. The server provides an "escape hatch" to allow server-client
-//! communication outside of bui-backend. [The demo][bui-demo] includes a Rust
-//! web assembly (wasm) frontend using the [seed](https://crates.io/crates/seed)
-//! framework and a plain Javascript frontend. Together, this lets you ship an
-//! application written in Rust as a single file with a browser-based UI.
+//! becomes your GUI. The server-side API is based on futures and reactively
+//! pushes state to the browser. Assets can be served from the filesystem or
+//! bundled in the executable. The server provides an "escape hatch" to allow
+//! server-client communication outside of bui-backend. [The demo][bui-demo]
+//! includes a Rust web assembly (wasm) frontend using the
+//! [yew](https://github.com/yewstack/yew) framework, the
+//! [seed](https://github.com/seed-rs/seed) framework, and a plain Javascript
+//! frontend. Together, this lets you ship an application written in Rust as a
+//! single file with a browser-based UI.
 //!
 //! The operating principle is that the server runs an HTTP server (based on
 //! [hyper](https://hyper.rs)) to which the browser connects. The initial page
@@ -31,7 +33,8 @@
 //!
 //! #### Features
 //!
-//!  - Uses [`async-change-tracker`](https://crates.io/crates/async-change-tracker)
+//!  - Uses
+//!    [`async-change-tracker`](https://crates.io/crates/async-change-tracker)
 //!    type to ensure that server state changes are reactively sent to all
 //!    connected frontends.
 //!  - To keep things simple, server state is shared with all connected clients.
@@ -39,7 +42,7 @@
 //!    and allow taking control of communication using pre-established event
 //!    stream. (This is an "escape hatch" to break out of the bui-backend
 //!    abstractions as required by some use cases.)
-//!  - Written in asyncronous rust using async/await.
+//!  - Written in asynchronous rust using async/await.
 //!  - Uses [Serde JSON](https://crates.io/crates/serde_json).
 //!  - Compile-time choice between bundling served files into executable (with
 //!    `bundle_files` feature) or reading files from disk (`serve_files`).

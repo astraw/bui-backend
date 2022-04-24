@@ -23,15 +23,27 @@
 //!     # Now point your browser to http://localhost:3410
 //!
 //! To run with other options:
+
+//!     # Use Rust yew frontend, all files bundled into executable:
+//!     # The following line requires building the Rust yew frontend (see below).
+//!     cargo run --no-default-features --features "bundle_files frontend_yew"
+//!
+//!     # or
+//!
+//!     # Use Rust yew frontend, files served from filesystem for frontend development:
+//!     # The following line requires building the Rust yew frontend (see below).
+//!     cargo run --no-default-features --features "serve_files frontend_yew"
+//!
+//!     # or
 //!
 //!     # Use Rust seed frontend, all files bundled into executable:
-//!     # The following line requires building the Rust yew frontend (see below).
+//!     # The following line requires building the Rust seed frontend (see below).
 //!     cargo run --no-default-features --features "bundle_files frontend_seed"
 //!
 //!     # or
 //!
 //!     # Use Rust seed frontend, files served from filesystem for frontend development:
-//!     # The following line requires building the Rust yew frontend (see below).
+//!     # The following line requires building the Rust seed frontend (see below).
 //!     cargo run --no-default-features --features "serve_files frontend_seed"
 //!
 //!     # or
