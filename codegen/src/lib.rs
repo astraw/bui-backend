@@ -17,8 +17,8 @@ where
     // Collect list of files to include
     let entries = walkdir::WalkDir::new(files_dir.as_ref())
         .into_iter()
-        .map(|entry| entry.expect("DirEntry error").path().into())
-        .collect::<Vec<std::path::PathBuf>>();
+        .map(|entry| entry.map(|entry| entry.path().into()))
+        .collect::<Result<Vec<std::path::PathBuf>, walkdir::Error>>()?;
 
     // Make sure we recompile if these files change
     println!("cargo:rerun-if-changed={}", files_dir.as_ref().display());
