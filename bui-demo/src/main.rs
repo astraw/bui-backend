@@ -61,6 +61,7 @@
 
 use std::{error::Error as StdError, future::Future, net::ToSocketAddrs, pin::Pin, sync::Arc};
 
+use clap::Parser;
 use parking_lot::RwLock;
 
 use async_change_tracker::ChangeTracker;
@@ -141,11 +142,6 @@ impl CallbackHandler for MyCallbackHandler {
     }
 }
 
-fn address(matches: &clap::ArgMatches) -> std::net::SocketAddr {
-    let address = matches.value_of("address").unwrap();
-    address.to_socket_addrs().unwrap().next().unwrap()
-}
-
 fn is_loopback(addr_any: &std::net::SocketAddr) -> bool {
     match addr_any {
         std::net::SocketAddr::V4(addr) => addr.ip().is_loopback(),
@@ -154,9 +150,8 @@ fn is_loopback(addr_any: &std::net::SocketAddr) -> bool {
 }
 
 /// Parse the JWT secret from command-line args or environment variables.
-fn jwt_secret(matches: &clap::ArgMatches, required: bool) -> Result<Vec<u8>, Error> {
-    match matches
-        .value_of("JWT_SECRET")
+fn jwt_secret(cli_arg: Option<&String>, required: bool) -> Result<Vec<u8>, Error> {
+    match cli_arg
         .map(|s| s.into())
         .or_else(|| std::env::var("JWT_SECRET").ok())
         .map(|s| s.into_bytes())
@@ -247,6 +242,19 @@ fn display_qr_url(url: &str) {
     writeln!(stdout_handle).unwrap();
 }
 
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    /// Bind the server to this address
+    #[arg(long)]
+    address: Option<std::net::SocketAddr>,
+
+    /// Specifies the JWT secret. Falls back to the JWT_SECRET environment
+    /// variable if unspecified.
+    #[arg(long)]
+    jwt_secret: Option<String>,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     // Set environment variables from `.env` file, if it exists.
@@ -256,33 +264,15 @@ async fn main() -> Result<(), Error> {
     env_logger::init();
 
     // Parse our command-line arguments.
-    let matches = clap::Command::new("CARGO_PKG_NAME")
-        .version(env!("CARGO_PKG_VERSION"))
-        .arg(
-            clap::Arg::new("JWT_SECRET")
-                .long("jwt-secret")
-                .help(
-                    "Specifies the JWT secret. Falls back to the JWT_SECRET \
-                environment variable if unspecified.",
-                )
-                .global(true)
-                .takes_value(true),
-        )
-        .arg(
-            clap::Arg::new("address")
-                .long("address")
-                .help("Bind the server to this address")
-                .default_value("localhost:3410")
-                .value_name("ADDRESS")
-                .takes_value(true),
-        )
-        .get_matches();
+    let cli = Cli::parse();
 
-    let http_server_addr = address(&matches);
+    let http_server_addr = cli
+        .address
+        .unwrap_or("localhost:3410".to_socket_addrs().unwrap().next().unwrap());
 
     // Get our JWT secret.
     let required = !is_loopback(&http_server_addr);
-    let secret = jwt_secret(&matches, required)?;
+    let secret = jwt_secret(cli.jwt_secret.as_ref(), required)?;
 
     // This `get_default_config()` function is created by bui_backend_codegen
     // and is pulled in here by the `include!` macro above.
