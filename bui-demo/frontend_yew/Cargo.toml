@@ -34,7 +34,3 @@ features=[
   "Response",
   "Window",
 ]
-
-# Bypass (for now) build errors when this is in the workspace below me.
-[workspace]
-members = []
