@@ -68,7 +68,7 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
-    - run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+    - run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | bash
     - run: ./build.sh
 
   build_demo_frontend_seed:
@@ -81,5 +81,5 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
-    - run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+    - run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | bash
     - run: ./build.sh
