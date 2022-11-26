@@ -1,11 +1,14 @@
-use std::{fmt::{self, Display, Formatter, Debug}, error::Error};
+use std::{
+    error::Error,
+    fmt::{self, Debug, Display, Formatter},
+};
 
 use gloo_events::EventListener;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::{JsCast, JsValue};
 
-use web_sys::{Event, EventSource, HtmlInputElement, MessageEvent};
 use wasm_bindgen_futures::JsFuture;
+use web_sys::{Event, EventSource, HtmlInputElement, MessageEvent};
 
 use yew::events::KeyboardEvent;
 use yew::prelude::*;
@@ -50,9 +53,9 @@ impl Component for App {
             })
             .unwrap();
 
-        let cb = ctx.link().callback(|bufstr: String| {
-            Msg::EsReady(serde_json::from_str(&bufstr))
-        });
+        let cb = ctx
+            .link()
+            .callback(|bufstr: String| Msg::EsReady(serde_json::from_str(&bufstr)));
         let listener = EventListener::new(&es, "bui_backend", move |event: &Event| {
             let event = event.dyn_ref::<MessageEvent>().unwrap();
             let text = event.data().as_string().unwrap();
@@ -95,7 +98,7 @@ impl Component for App {
                     }
                 });
                 ctx.link()
-                .send_message(Msg::SendMessageFetchState(FetchState::Fetching));
+                    .send_message(Msg::SendMessageFetchState(FetchState::Fetching));
                 return false; // Don't update DOM, do that when backend notifies us of new state.
             }
             Msg::ToggleRecording => {
@@ -112,7 +115,7 @@ impl Component for App {
                     }
                 });
                 ctx.link()
-                .send_message(Msg::SendMessageFetchState(FetchState::Fetching));
+                    .send_message(Msg::SendMessageFetchState(FetchState::Fetching));
                 return false; // Don't update DOM, do that when backend notifies us of new state.
             }
             Msg::Ignore => {
@@ -192,7 +195,7 @@ impl From<JsValue> for FetchError {
 }
 
 async fn post_callback(msg: Callback) -> Result<(), FetchError> {
-    use web_sys::{RequestInit, Response, Request};
+    use web_sys::{Request, RequestInit, Response};
     let mut opts = RequestInit::new();
     opts.method("POST");
     // opts.mode(web_sys::RequestMode::Cors);
