@@ -2,6 +2,7 @@ use seed::prelude::*;
 use wasm_bindgen::closure::Closure;
 
 use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::JsFuture;
 use web_sys::{EventSource, MessageEvent};
 
 use bui_demo_data::{Callback, Shared};
@@ -66,7 +67,7 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
                 Ok(data_result) => {
                     model.shared = Some(data_result);
                 }
-                Err(e) => seed::error!("error in response", e),
+                Err(e) => gloo_console::error!(format!("error in response: {e}")),
             }
         }
         Msg::Connected(_) => {
@@ -79,7 +80,7 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
             let name = model.local_name.clone();
             orders
                 .skip()
-                .perform_cmd(async { send_message(&Callback::SetName(name)).await });
+                .perform_cmd(async { send_message(Callback::SetName(name)).await });
         }
         Msg::UpdateName(local_name) => {
             model.local_name = local_name;
@@ -96,37 +97,38 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
                 false
             };
             orders.skip().perform_cmd(async move {
-                send_message(&Callback::SetIsRecording(new_value)).await
+                send_message(Callback::SetIsRecording(new_value)).await
             });
         }
         Msg::Fetched(Ok(_response_data)) => {
             // fetch successful
         }
         Msg::Fetched(Err(fail_reason)) => {
-            seed::error!("callback fetch error:", fail_reason);
+            (gloo_console::error!(format!("callback fetch error: {fail_reason}")));
             orders.skip();
         }
     }
 }
 
-async fn send_message(payload: &Callback) -> Msg {
+async fn send_message(msg: Callback) -> Msg {
+    use web_sys::{Request, RequestInit, Response};
+    let mut opts = RequestInit::new();
+    opts.method("POST");
+    let buf = serde_json::to_string(&msg).unwrap();
+    opts.body(Some(&JsValue::from_str(&buf)));
+
     let url = "callback";
+    let request = Request::new_with_str_and_init(url, &opts).unwrap();
 
-    let request = Request::new(url)
-        .method(Method::Post)
-        .json(&payload)
-        .expect("Serialization failed");
-
-    let response = fetch(request).await.expect("HTTP request failed");
-
-    let result = response
-        .check_status() // ensure we've got 2xx status
-        .expect("status check failed")
-        .json::<()>()
+    let window = gloo_utils::window();
+    let resp_value = JsFuture::from(window.fetch_with_request(&request))
         .await
-        .map_err(|e| format!("{:?}", e));
+        .unwrap();
+    let resp: Response = resp_value.dyn_into().unwrap();
 
-    Msg::Fetched(result)
+    let text = JsFuture::from(resp.text().unwrap()).await.unwrap();
+    let _text_string = text.as_string().unwrap();
+    Msg::Fetched(Ok(()))
 }
 
 // -----------------------------------------------------------------------------
