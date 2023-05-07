@@ -5,7 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
+    - uses: dtolnay/rust-toolchain@master
       with:
         toolchain: stable
     - uses: actions-rs/cargo@v1
@@ -16,7 +16,7 @@ jobs:
     runs-on: macos-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
+    - uses: dtolnay/rust-toolchain@master
       with:
         toolchain: stable
     - uses: actions-rs/cargo@v1
@@ -27,7 +27,7 @@ jobs:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
+    - uses: dtolnay/rust-toolchain@master
       with:
         toolchain: stable
     - uses: actions-rs/cargo@v1
@@ -41,7 +41,7 @@ jobs:
         working-directory: bui-demo
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
+    - uses: dtolnay/rust-toolchain@master
       with:
         toolchain: stable
     - run: cargo build
@@ -53,7 +53,7 @@ jobs:
         working-directory: bui-demo
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
+    - uses: dtolnay/rust-toolchain@master
       with:
         toolchain: stable
     - run: cargo build --no-default-features --features serve_files,frontend_js
@@ -65,7 +65,7 @@ jobs:
         working-directory: bui-demo/frontend_yew
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
+    - uses: dtolnay/rust-toolchain@master
       with:
         toolchain: stable
     - run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | bash
@@ -78,7 +78,7 @@ jobs:
         working-directory: bui-demo/frontend_seed
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
+    - uses: dtolnay/rust-toolchain@master
       with:
         toolchain: stable
     - run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | bash
