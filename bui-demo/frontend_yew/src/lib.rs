@@ -195,12 +195,18 @@ impl From<JsValue> for FetchError {
 }
 
 async fn post_callback(msg: Callback) -> Result<(), FetchError> {
-    use web_sys::{Request, RequestInit, Response};
+    use web_sys::{Headers, Request, RequestInit, Response};
+
+    let headers = Headers::new().unwrap();
+    headers
+        .set("Content-Type", "application/json;charset=UTF-8")
+        .unwrap();
+
     let mut opts = RequestInit::new();
     opts.method("POST");
     opts.cache(web_sys::RequestCache::NoStore);
     // opts.mode(web_sys::RequestMode::Cors);
-    // opts.headers("Content-Type", "application/json;charset=UTF-8")
+    opts.headers(&headers.into());
     // set SameOrigin
     let buf = serde_json::to_string(&msg).unwrap();
     opts.body(Some(&JsValue::from_str(&buf)));

@@ -33,9 +33,14 @@ function update_dom(state) {
 function send_message(msg) {
     var buf = JSON.stringify(msg);
 
+    const headers = [
+        ['Content-Type', 'application/json;charset=UTF-8'],
+      ];
+
     fetch("callback",
         { method: "POST",
         cache: "no-store",
+        headers: headers,
         body: buf
     })
 }
