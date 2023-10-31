@@ -33,11 +33,11 @@ function update_dom(state) {
 function send_message(msg) {
     var buf = JSON.stringify(msg);
 
-    var httpRequest = new XMLHttpRequest();
-    httpRequest.open('POST', 'callback');
-    httpRequest.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
-    httpRequest.setRequestHeader('Cache-Control', 'no-cache, no-store, max-age=0');
-    httpRequest.send(buf);
+    fetch("callback",
+        { method: "POST",
+        cache: "no-store",
+        body: buf
+    })
 }
 
 
