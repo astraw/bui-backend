@@ -58,7 +58,7 @@ pub enum Msg {
     Fetched(Result<(), String>),
 }
 
-fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
+fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
     match msg {
         Msg::ServerMessage(msg_event) => {
             let txt = msg_event.data().as_string().unwrap();
