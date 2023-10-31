@@ -29,6 +29,7 @@ features=[
   "HtmlInputElement",
   "MessageEvent",
   "Request",
+  "RequestCache",
   "RequestInit",
   "RequestMode",
   "Response",

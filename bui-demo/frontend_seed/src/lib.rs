@@ -114,6 +114,7 @@ async fn send_message(msg: Callback) -> Msg {
     use web_sys::{Request, RequestInit, Response};
     let mut opts = RequestInit::new();
     opts.method("POST");
+    opts.cache(web_sys::RequestCache::NoStore);
     let buf = serde_json::to_string(&msg).unwrap();
     opts.body(Some(&JsValue::from_str(&buf)));
 

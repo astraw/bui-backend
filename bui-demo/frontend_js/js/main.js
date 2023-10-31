@@ -36,6 +36,7 @@ function send_message(msg) {
     var httpRequest = new XMLHttpRequest();
     httpRequest.open('POST', 'callback');
     httpRequest.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+    httpRequest.setRequestHeader('Cache-Control', 'no-cache, no-store, max-age=0');
     httpRequest.send(buf);
 }
 
