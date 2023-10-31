@@ -52,12 +52,18 @@ To run with other options:
     # Use JS frontend, files served from filesystem for frontend development:
     cargo run --no-default-features --features "serve_files frontend_js"
 
+## Building the Rust yew frontend
+
+Frontend is built with `wasm-pack`. (In development, `wasm-pack 0.8.11` was
+used.) Install from https://rustwasm.github.io/wasm-pack/installer/ .
+
+    cd frontend_yew && ./build.sh
+
 ## Building the Rust seed frontend
 
 Frontend is built with `wasm-pack`. (In development, `wasm-pack 0.8.11` was
 used.) Install from https://rustwasm.github.io/wasm-pack/installer/ .
 
     cd frontend_seed && ./build.sh
-
 
 License: MIT/Apache-2.0
