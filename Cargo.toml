@@ -23,7 +23,7 @@ tokio-stream = "0.1.8"
 stream-cancel = "0.8"
 http = "0.2"
 url = "2"
-hyper = {version="0.14", features=["server","http1","tcp","stream"]}
+hyper = {version="1.0", features=["server","http1","tcp","stream"]}
 log = "0.4"
 serde = {version="1.0",features=["derive"]}
 serde_json = {version = "1.0"}
