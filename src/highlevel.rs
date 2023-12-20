@@ -14,9 +14,6 @@ use uuid::Uuid;
 
 use serde::Serialize;
 
-use hyper::server::conn::AddrStream;
-use hyper::service::make_service_fn;
-
 use bui_backend_types::AccessToken;
 
 use crate::access_control;
@@ -121,7 +118,7 @@ pub fn generate_auth_with_token(
 /// Factory function to create a new BUI application.
 pub async fn create_bui_app_inner<'a, T, CB>(
     handle: tokio::runtime::Handle,
-    shutdown_rx: Option<tokio::sync::oneshot::Receiver<()>>,
+    mut shutdown_rx: Option<tokio::sync::oneshot::Receiver<()>>,
     auth: &access_control::AccessControl,
     shared_arc: Arc<RwLock<ChangeTracker<T>>>,
     event_name: Option<String>,
@@ -133,47 +130,66 @@ where
     CB: serde::de::DeserializeOwned + Clone + Send + 'static,
 {
     let (quit_trigger, valve) = stream_cancel::Valve::new();
+    let rx_conn = tokio_stream::wrappers::ReceiverStream::new(rx_conn);
 
-    let bui_server: BuiService<CB> = bui_server; // type annotation
+    let mut rx_conn_valve = valve.wrap(rx_conn);
 
-    let b2 = bui_server.clone();
-
-    type MyError = std::io::Error; // anything that implements std::error::Error and Send
-
-    let new_service = make_service_fn(move |socket: &AddrStream| {
-        let _remote_addr = socket.remote_addr();
-        let b3 = b2.clone();
-        async move { Ok::<_, MyError>(b3.clone()) }
-    });
-
-    let addr = auth.bind_addr();
-
-    // this will fail unless there is a reactor already
-    let bound = async { hyper::Server::try_bind(addr) }.await?;
-
-    let server = bound.serve(new_service);
-
-    let local_addr = server.local_addr();
-
-    let log_and_swallow_err = |r| match r {
-        Ok(_) => {}
-        Err(e) => {
-            error!("{} ({}:{})", e, file!(), line!());
-        }
-    };
-
-    if let Some(shutdown_rx) = shutdown_rx {
-        let graceful = server.with_graceful_shutdown(async move {
-            shutdown_rx.await.ok();
+    if let Some(shutdown_rx) = shutdown_rx.take() {
+        handle.spawn(async move {
+            shutdown_rx.await.unwrap();
+            // Cancel the stream. (The receiver will receive end-of-stream.)
             quit_trigger.cancel();
         });
-        use futures::future::FutureExt;
-        handle.spawn(Box::pin(graceful.map(log_and_swallow_err)));
     } else {
+        // Allow dropping `quit_trigger` without canceling stream.
         quit_trigger.disable();
-        use futures::future::FutureExt;
-        handle.spawn(Box::pin(server.map(log_and_swallow_err)));
-    };
+    }
+
+    let bui_server2 = bui_server.clone();
+
+    let addr = auth.bind_addr();
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+
+    let local_addr = listener.local_addr()?;
+    let handle2 = handle.clone();
+
+    handle.spawn(async move {
+        loop {
+            let (socket, _remote_addr) = listener.accept().await.unwrap();
+            let bui_server = bui_server2.clone();
+
+            // Spawn a task to handle the connection. That way we can multiple connections
+            // concurrently.
+            handle2.spawn(async move {
+                // Hyper has its own `AsyncRead` and `AsyncWrite` traits and doesn't use tokio.
+                // `TokioIo` converts between them.
+                let socket = hyper_util::rt::TokioIo::new(socket);
+                let bui_server = bui_server.clone();
+
+                let hyper_service = hyper::service::service_fn(
+                    move |request: hyper::Request<hyper::body::Incoming>| {
+                        use hyper::service::Service;
+                        // Do we need to call `poll_ready`????
+                        bui_server.call(request)
+                    },
+                );
+
+                // `server::conn::auto::Builder` supports both http1 and http2.
+                //
+                // `TokioExecutor` tells hyper to use `tokio::spawn` to spawn tasks.
+                if let Err(err) = hyper_util::server::conn::auto::Builder::new(
+                    hyper_util::rt::TokioExecutor::new(),
+                )
+                // `serve_connection_with_upgrades` is required for websockets. If you don't need
+                // that you can use `serve_connection` instead.
+                .serve_connection_with_upgrades(socket, hyper_service)
+                .await
+                {
+                    eprintln!("failed to serve connection: {err:#}");
+                }
+            });
+        }
+    });
 
     let inner = BuiAppInner {
         i_shared_arc: shared_arc,
@@ -189,10 +205,7 @@ where
     let shared_arc = inner.i_shared_arc.clone();
     let txers2 = inner.i_txers.clone();
     let new_conn_tx2 = new_conn_tx.clone();
-    let event_name2 = event_name.clone();
-
-    let rx_conn = tokio_stream::wrappers::ReceiverStream::new(rx_conn);
-    let mut rx_conn_valve = valve.wrap(rx_conn);
+    let event_name2: Option<String> = event_name.clone();
 
     let handle_connections_fut = async move {
         while let Some(conn_info) = futures::StreamExt::next(&mut rx_conn_valve).await {

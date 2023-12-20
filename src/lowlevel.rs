@@ -7,8 +7,12 @@ use hyper;
 #[cfg(feature = "bundle_files")]
 use includedir;
 
-use hyper::header::ACCEPT;
-use hyper::{Method, StatusCode};
+use hyper::{
+    header::ACCEPT,
+    {Method, StatusCode},
+};
+
+type MyBody = http_body_util::combinators::BoxBody<bytes::Bytes, hyper::Error>;
 
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
@@ -26,7 +30,7 @@ use serde::{Deserialize, Serialize};
 
 // ---------------------------
 const JSON_TYPE: &str = "application/json";
-const JSON_NULL: &str = "null";
+const JSON_NULL: &[u8] = b"{}";
 
 /// The claims validated using JSON Web Tokens.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -79,8 +83,8 @@ pub type RawReqHandler = Arc<
     Box<
         dyn (Fn(
                 http::response::Builder,
-                http::Request<hyper::Body>,
-            ) -> Result<http::Response<hyper::Body>, http::Error>)
+                http::Request<hyper::body::Incoming>,
+            ) -> Result<http::Response<MyBody>, http::Error>)
             + Send
             + Sync,
     >,
@@ -243,13 +247,19 @@ impl<CB> BuiService<CB> {
     }
 }
 
+fn body_from_buf(body_buf: &[u8]) -> MyBody {
+    let body = http_body_util::Full::new(bytes::Bytes::from(body_buf.to_vec()));
+    use http_body_util::BodyExt;
+    MyBody::new(body.map_err(|_: std::convert::Infallible| unreachable!()))
+}
+
 async fn handle_req<CB>(
     self_: BuiService<CB>,
-    req: http::Request<hyper::Body>,
+    req: http::Request<hyper::body::Incoming>,
     mut resp: http::response::Builder,
     login_info: ValidLogin,
     raw_req_handler: Option<RawReqHandler>,
-) -> Result<http::Response<hyper::Body>, http::Error> {
+) -> Result<http::Response<MyBody>, http::Error> {
     // TODO: convert this to be async yield when blocking on IO operations.
     let session_key = match login_info {
         ValidLogin::NeedsSessionKey => {
@@ -312,8 +322,13 @@ async fn handle_req<CB>(
                             .expect("from_str"),
                     );
 
-                    let rx_event_stream2 = rx_event_stream.map(Ok::<_, hyper::Error>);
-                    resp.body(hyper::Body::wrap_stream(rx_event_stream2))?
+                    let rx_event_stream2 = rx_event_stream.map(|data: bytes::Bytes| {
+                        Ok::<_, hyper::Error>(hyper::body::Frame::data(data))
+                    });
+
+                    resp.body(MyBody::new(http_body_util::StreamBody::new(
+                        rx_event_stream2,
+                    )))?
                 } else {
                     let estr = "Event request does not specify \
                         'Accept' or does not accept the required \
@@ -321,9 +336,9 @@ async fn handle_req<CB>(
                         .to_string();
                     warn!("{}", estr);
                     let e = ErrorsBackToBrowser { errors: vec![estr] };
-                    let body_str = serde_json::to_string(&e).unwrap();
+                    let body_buf = serde_json::to_vec(&e).unwrap();
                     resp = resp.status(StatusCode::BAD_REQUEST);
-                    resp.body(body_str.into())?
+                    resp.body(body_from_buf(&body_buf))?
                 }
             } else {
                 // TODO read file asynchronously
@@ -341,15 +356,14 @@ async fn handle_req<CB>(
                                 hyper::header::HeaderValue::from_str(mime_type).expect("from_str"),
                             );
                         }
-
-                        resp.body(buf.into())?
+                        resp.body(body_from_buf(&buf))?
                     }
                     None => {
                         if let Some(raw_req_handler) = raw_req_handler {
                             raw_req_handler(resp, req)?
                         } else {
                             resp = resp.status(StatusCode::NOT_FOUND);
-                            resp.body(hyper::Body::empty())?
+                            resp.body(body_from_buf(&[]))?
                         }
                     }
                 }
@@ -360,7 +374,7 @@ async fn handle_req<CB>(
                 raw_req_handler(resp, req)?
             } else {
                 resp = resp.status(StatusCode::NOT_FOUND);
-                resp.body(hyper::Body::empty())?
+                resp.body(body_from_buf(&[]))?
             }
         }
     };
@@ -371,23 +385,18 @@ fn handle_callback<CB>(
     handler: Box<dyn CallbackHandler<Data = CB> + Send>,
     session_key: bui_backend_types::SessionKey,
     resp0: http::response::Builder,
-    req: http::Request<hyper::Body>,
-) -> Pin<Box<dyn Future<Output = Result<http::Response<hyper::Body>, hyper::Error>> + Send>>
+    req: http::Request<hyper::body::Incoming>,
+) -> Pin<Box<dyn Future<Output = Result<http::Response<MyBody>, hyper::Error>> + Send>>
 where
     CB: 'static + serde::de::DeserializeOwned + Send,
 {
     let result = async move {
-        // fold all chunks into one Vec<u8>
         let body = req.into_body();
-        let chunks: Vec<Result<hyper::body::Bytes, hyper::Error>> = body.collect().await;
-        let chunks: Result<Vec<hyper::body::Bytes>, hyper::Error> = chunks.into_iter().collect();
-        let chunks: Vec<hyper::body::Bytes> = chunks?;
-
-        let data: Vec<u8> = chunks.into_iter().fold(vec![], |mut buf, chunk| {
-            trace!("got chunk: {}", String::from_utf8_lossy(&chunk));
-            buf.extend_from_slice(&*chunk);
-            buf
-        });
+        let chunks: Result<http_body_util::Collected<bytes::Bytes>, hyper::Error> = {
+            use http_body_util::BodyExt;
+            body.collect().await
+        };
+        let data = chunks?.to_bytes();
 
         // parse data
 
@@ -412,14 +421,14 @@ where
                 let r0 = match x {
                     Ok(()) => resp0
                         .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
-                        .body(JSON_NULL.into())
+                        .body(body_from_buf(JSON_NULL))
                         .expect("response"),
                     Err(e) => {
                         error!("internal server error: {:?}", e);
                         resp0
                             .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
                             .status(StatusCode::INTERNAL_SERVER_ERROR)
-                            .body(JSON_NULL.into())
+                            .body(body_from_buf(JSON_NULL))
                             .expect("response")
                     }
                 };
@@ -431,15 +440,15 @@ where
     Box::pin(result)
 }
 
-fn on_json_parse_err(e: serde_json::Error) -> http::Response<hyper::Body> {
+fn on_json_parse_err(e: serde_json::Error) -> http::Response<MyBody> {
     let estr = format!("Failed parsing JSON: {}", e);
     warn!("{}", estr);
     let e = ErrorsBackToBrowser { errors: vec![estr] };
-    let body_str = serde_json::to_string(&e).unwrap();
+    let body_buf = serde_json::to_vec(&e).unwrap();
     http::Response::builder()
         .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
         .status(StatusCode::BAD_REQUEST)
-        .body(body_str.into())
+        .body(body_from_buf(&body_buf))
         .expect("response")
 }
 
@@ -547,24 +556,15 @@ fn get_session_key<'a>(
     }
 }
 
-impl<CB> hyper::service::Service<hyper::Request<hyper::Body>> for BuiService<CB>
+impl<CB> hyper::service::Service<hyper::Request<hyper::body::Incoming>> for BuiService<CB>
 where
     CB: 'static + serde::de::DeserializeOwned + Clone + Send,
 {
-    type Response = http::Response<hyper::Body>;
+    type Response = hyper::Response<MyBody>;
     type Error = hyper::Error;
-
-    // should Self::Future also implement Unpin??
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-    fn poll_ready(
-        &mut self,
-        _cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
-        std::task::Poll::Ready(Ok(()))
-    }
-
-    fn call(&mut self, req: http::Request<hyper::Body>) -> Self::Future {
+    fn call(&self, req: http::Request<hyper::body::Incoming>) -> Self::Future {
         let decoding_key = jsonwebtoken::DecodingKey::from_secret(&self.jwt_secret);
         // Parse cookies.
         let res_session_key = {
@@ -592,11 +592,11 @@ where
                 Ok(login_info) => login_info,
                 Err(errors) => {
                     warn!("no (valid) session key in callback");
-                    let body_str = serde_json::to_string(&errors).unwrap();
+                    let body_buf = serde_json::to_vec(&errors).unwrap();
                     let resp = http::Response::builder()
                         .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
                         .status(StatusCode::BAD_REQUEST)
-                        .body(body_str.into())
+                        .body(body_from_buf(&body_buf))
                         .expect("response");
                     return Box::pin(std::future::ready(Ok(resp)));
                 }
@@ -628,11 +628,11 @@ where
                 let estr = "No (valid) token in request.".to_string();
                 let errors = ErrorsBackToBrowser { errors: vec![estr] };
 
-                let body_str = serde_json::to_string(&errors).unwrap();
+                let body_buf = serde_json::to_vec(&errors).unwrap();
                 let resp = http::Response::builder()
                     .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
                     .status(StatusCode::BAD_REQUEST)
-                    .body(body_str.into())
+                    .body(body_from_buf(&body_buf))
                     .expect("response");
                 return Box::pin(std::future::ready(Ok(resp)));
             }

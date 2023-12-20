@@ -18,12 +18,12 @@ bui-backend-types = {version="0.8", path="types", features=["uuid-v4"]}
 futures = "0.3.0"
 parking_lot = "0.12"
 includedir = {version="0.6", optional=true}
-tokio = {version="1.0", features=["sync", "rt"]}
+tokio = {version="1.0", features=["sync", "rt", "net"]}
 tokio-stream = "0.1.8"
 stream-cancel = "0.8"
-http = "0.2"
+http = "1.0"
 url = "2"
-hyper = {version="0.14", features=["server","http1","tcp","stream"]}
+hyper = { version = "1.0", features = ["server", "http1"] }
 log = "0.4"
 serde = {version="1.0",features=["derive"]}
 serde_json = {version = "1.0"}
@@ -33,6 +33,9 @@ thiserror = "1.0"
 cookie = "0.17"
 conduit-mime-types = "0.8"
 dyn-clone = "1.0.5"
+bytes = "1.5.0"
+http-body-util = "0.1.0"
+hyper-util = { version = "0.1.1", features = ["tokio", "server", "server-auto"] }
 
 [features]
 default = ["bundle_files"]
