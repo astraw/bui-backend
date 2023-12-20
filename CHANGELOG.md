@@ -4,6 +4,19 @@ All user visible changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/), as described
 for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/text/1105-api-evolution.md)
 
+## [0.15.0] - 2023-12-20
+
+### Changed
+
+* Update to `hyper` 1.0.
+
+## [0.14.0] - 2022-04-24
+
+### Changed
+
+* Callbacks are handled by implementing the CallbackHandler trait rather than a
+  closure.
+* Update dependencies.
 
 ## [0.13.0] - 2022-01-31
 
@@ -164,6 +177,8 @@ for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/
 
 * Initial release
 
+[0.15.0]: https://github.com/astraw/bui-backend/compare/bui-backend/0.14.0...bui-backend/0.15.0
+[0.14.0]: https://github.com/astraw/bui-backend/compare/bui-backend/0.13.0...bui-backend/0.14.0
 [0.13.0]: https://github.com/astraw/bui-backend/compare/bui-backend/0.12.0...bui-backend/0.13.0
 [0.12.0]: https://github.com/astraw/bui-backend/compare/bui-backend/0.11.0...bui-backend/0.12.0
 [0.11.0]: https://github.com/astraw/bui-backend/compare/bui-backend/0.10.0...bui-backend/0.11.0
