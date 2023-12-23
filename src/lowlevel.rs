@@ -587,21 +587,21 @@ where
             res_session_key, req
         );
 
-        if req.method() == Method::POST && req.uri().path() == "/callback" {
-            let login_info = match res_session_key {
-                Ok(login_info) => login_info,
-                Err(errors) => {
-                    warn!("no (valid) session key in callback");
-                    let body_buf = serde_json::to_vec(&errors).unwrap();
-                    let resp = http::Response::builder()
-                        .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
-                        .status(StatusCode::BAD_REQUEST)
-                        .body(body_from_buf(&body_buf))
-                        .expect("response");
-                    return Box::pin(std::future::ready(Ok(resp)));
-                }
-            };
+        let login_info = match res_session_key {
+            Ok(login_info) => login_info,
+            Err(errors) => {
+                warn!("no (valid) session key in request");
+                let body_buf = serde_json::to_vec(&errors).unwrap();
+                let resp = http::Response::builder()
+                    .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
+                    .status(StatusCode::BAD_REQUEST)
+                    .body(body_from_buf(&body_buf))
+                    .expect("response");
+                return Box::pin(std::future::ready(Ok(resp)));
+            }
+        };
 
+        if req.method() == Method::POST && req.uri().path() == "/callback" {
             let mut resp0 = http::Response::builder();
             let session_key = match login_info {
                 ValidLogin::NeedsSessionKey => {
@@ -621,22 +621,6 @@ where
         }
 
         let resp = http::Response::builder();
-
-        let login_info = match res_session_key {
-            Ok(login_info) => login_info,
-            Err(_errors) => {
-                let estr = "No (valid) token in request.".to_string();
-                let errors = ErrorsBackToBrowser { errors: vec![estr] };
-
-                let body_buf = serde_json::to_vec(&errors).unwrap();
-                let resp = http::Response::builder()
-                    .header(hyper::header::CONTENT_TYPE, JSON_TYPE)
-                    .status(StatusCode::BAD_REQUEST)
-                    .body(body_from_buf(&body_buf))
-                    .expect("response");
-                return Box::pin(std::future::ready(Ok(resp)));
-            }
-        };
 
         use futures::future::FutureExt;
         let resp_final = handle_req(
